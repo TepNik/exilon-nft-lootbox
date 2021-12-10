@@ -93,7 +93,7 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
         uint256 _openingPrice,
         bool onMarket,
         string memory _uri
-    ) external payable nonReentrant {
+    ) external nonReentrant {
         require(msg.sender == tx.origin, "ExilonNftLootbox: Contracts not allowed");
         require(winningPlaces.length > 0, "ExilonNftLootbox: Must be at least one winning place");
 
@@ -373,8 +373,8 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
 
                 totalSharesOfERC20[id][prizeInfo[j].tokenAddress] = _totalShares - oldAmount;
             }
+            FundsHolder(fundsHolder).withdrawToken(prizeInfo[j], msg.sender);
         }
-        FundsHolder(fundsHolder).withdrawTokens(prizeInfo, msg.sender);
     }
 
     function _getWinningIndex(
