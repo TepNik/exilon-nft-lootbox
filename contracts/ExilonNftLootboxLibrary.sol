@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import "./pancake-swap/interfaces/IPancakeRouter02.sol";
+
 library ExilonNftLootboxLibrary {
     using SafeERC20 for IERC20;
 
@@ -155,7 +157,7 @@ library ExilonNftLootboxLibrary {
 
             for (uint256 j = 0; j < winningPlaces[i].prizesInfo.length; ++j) {
                 ExilonNftLootboxLibrary.TokenInfo memory currentToken = winningPlaces[i].prizesInfo[
-                    i
+                    j
                 ];
 
                 if (currentToken.tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
@@ -222,5 +224,45 @@ library ExilonNftLootboxLibrary {
             }
         }
         return type(uint256).max;
+    }
+
+    function getWinningIndex(
+        WinningPlace[] memory restPrizes,
+        uint256 randomNumber
+    ) external pure returns (uint256 winningIndex) {
+        winningIndex = type(uint256).max;
+        uint256 amountPassed;
+        for (uint256 j = 0; j < restPrizes.length && winningIndex == type(uint256).max; ++j) {
+            if (restPrizes[j].placeAmounts >= randomNumber + 1 - amountPassed) {
+                winningIndex = j;
+            }
+            amountPassed += restPrizes[j].placeAmounts;
+        }
+        require(winningIndex != type(uint256).max, "ExilonNftLootbox: Random generator");
+    }
+
+    function removeWinningPlace(
+        WinningPlace[] memory restPrizes,
+        uint256 id,
+        uint256 winningIndex,
+        mapping(uint256 => WinningPlace[]) storage prizes
+    ) external returns (WinningPlace[] memory) {
+        restPrizes[winningIndex].placeAmounts -= 1;
+        prizes[id][winningIndex].placeAmounts -= 1;
+        if (restPrizes[winningIndex].placeAmounts == 0) {
+            uint256 len = restPrizes.length;
+            if (winningIndex < len - 1) {
+                prizes[id][winningIndex] = prizes[id][len - 1];
+                restPrizes[winningIndex] = restPrizes[len - 1];
+            }
+
+            prizes[id].pop();
+
+            assembly {
+                mstore(restPrizes, sub(mload(restPrizes), 1))
+            }
+        }
+
+        return restPrizes;
     }
 }
