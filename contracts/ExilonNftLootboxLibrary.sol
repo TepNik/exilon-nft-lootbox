@@ -324,7 +324,11 @@ library ExilonNftLootboxLibrary {
         return restPrizes;
     }
 
-    function _getRevertMsg(bytes memory revertData) private pure returns (string memory errorMessage) {
+    function _getRevertMsg(bytes memory revertData)
+        private
+        pure
+        returns (string memory errorMessage)
+    {
         // revert data format:
         // 4 bytes - Function selector for Error(string)
         // 32 bytes - Data offset
@@ -332,7 +336,19 @@ library ExilonNftLootboxLibrary {
         // other - String data
 
         // If the revertData length is less than 68, then the transaction failed silently (without a revert message)
-        if (revertData.length < 68) return "";
-        (, errorMessage) = abi.decode(revertData, (bytes4, string)); // Remove the selector which is the first 4 bytes
+        if (revertData.length <= 68) return "";
+
+        uint256 index = revertData.length - 1;
+        while (index > 68 && revertData[index] == bytes1(0)) {
+            index--;
+        }
+        uint256 numberOfZeroElements = revertData.length - 1 - index;
+
+        bytes memory rawErrorMessage = new bytes(revertData.length - 68 - numberOfZeroElements);
+
+        for (uint256 i = 0; i < revertData.length - 68 - numberOfZeroElements; ++i) {
+            rawErrorMessage[i] = revertData[i + 68];
+        }
+        errorMessage = string(rawErrorMessage);
     }
 }

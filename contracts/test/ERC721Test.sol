@@ -5,6 +5,8 @@ pragma solidity 0.8.11;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 contract ERC721Test is ERC721 {
+    bool isTransfersDisabled;
+
     mapping(uint256 => string) tokensUri;
 
     constructor() ERC721("ERC721 Test", "ERC721") {}
@@ -19,5 +21,17 @@ contract ERC721Test is ERC721 {
 
     function mint(uint256 tokenId) external {
         _safeMint(msg.sender, tokenId);
+    }
+
+    function switchTransfers() external {
+        isTransfersDisabled = !isTransfersDisabled;
+    }
+
+    function _beforeTokenTransfer(
+        address,
+        address,
+        uint256
+    ) internal virtual override {
+        require(!isTransfersDisabled, "ERC721Test: Transfers disabled");
     }
 }

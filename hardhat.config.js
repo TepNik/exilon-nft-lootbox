@@ -27,6 +27,8 @@ require("@nomiclabs/hardhat-solhint");
 // command: npx hardhat test --logs
 require("hardhat-tracer");
 
+require("@nomiclabs/hardhat-web3");
+
 let config = require("./config.js");
 
 module.exports = {
@@ -115,7 +117,7 @@ module.exports = {
         currency: "USD",
         coinmarketcap: config.coinmarketcapApi,
         token: "BNB",
-        gasPriceApi: "https://api.bscscan.com/api?module=proxy&action=eth_gasPrice"
+        gasPriceApi: "https://api.bscscan.com/api?module=proxy&action=eth_gasPrice",
     },
     abiExporter: {
         path: "./data/abi",

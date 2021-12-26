@@ -18,8 +18,8 @@ contract ERC20Test is ERC20 {
     }
 
     function _beforeTokenTransfer(
-        address ,
-        address ,
+        address,
+        address,
         uint256
     ) internal virtual override {
         require(!isTransfersDisabled, "ERC20Test: Transfers disabled");

@@ -1,4 +1,5 @@
 const { expect } = require("chai");
+const { constants, expectEvent, expectRevert, snapshot } = require("@openzeppelin/test-helpers");
 
 const BN = ethers.BigNumber;
 
@@ -175,6 +176,8 @@ describe("Exilon Nft Lootbox test", function () {
         expect(await Erc721Inst.ownerOf(idOfErc721)).to.be.equals(fundsHolder);
         expect(await Erc1155Inst.balanceOf(fundsHolder, idOfErc1155)).to.be.equals(amountOfErc1155);
 
+        let snapshotBeforeOpening = await snapshot();
+
         await ExilonNftLootboxInst.connect(user).buyId(0, 5, {
             value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 6),
         });
@@ -184,5 +187,62 @@ describe("Exilon Nft Lootbox test", function () {
         expect(await Erc1155Inst.balanceOf(user.address, idOfErc1155)).to.be.equals(
             amountOfErc1155
         );
+
+        await snapshotBeforeOpening.restore();
+
+        await Erc20Inst.switchTransfers();
+
+        let tx = await (
+            await ExilonNftLootboxInst.connect(user).buyId(0, 5, {
+                value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 5),
+            })
+        ).wait();
+        for (let i = 0; i < tx.events.length; ++i) {
+            if (tx.events[i].address == fundsHolder) {
+                let data = ethers.utils.defaultAbiCoder.decode(
+                    ["uint256", "string"],
+                    tx.events[i].data
+                );
+                expect(data[1]).to.be.equals("ERC20Test: Transfers disabled");
+            }
+        }
+
+        await snapshotBeforeOpening.restore();
+
+        await Erc721Inst.switchTransfers();
+
+        tx = await (
+            await ExilonNftLootboxInst.connect(user).buyId(0, 5, {
+                value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 5),
+            })
+        ).wait();
+        for (let i = 0; i < tx.events.length; ++i) {
+            if (tx.events[i].address == fundsHolder) {
+                let data = ethers.utils.defaultAbiCoder.decode(
+                    ["uint256", "string"],
+                    tx.events[i].data
+                );
+                expect(data[1]).to.be.equals("ERC721Test: Transfers disabled");
+            }
+        }
+
+        await snapshotBeforeOpening.restore();
+
+        await Erc1155Inst.switchTransfers();
+
+        tx = await (
+            await ExilonNftLootboxInst.connect(user).buyId(0, 5, {
+                value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 5),
+            })
+        ).wait();
+        for (let i = 0; i < tx.events.length; ++i) {
+            if (tx.events[i].address == fundsHolder) {
+                let data = ethers.utils.defaultAbiCoder.decode(
+                    ["uint256", "uint256", "string"],
+                    tx.events[i].data
+                );
+                expect(data[2]).to.be.equals("ERC1155Test: Transfers disabled");
+            }
+        }
     });
 });
