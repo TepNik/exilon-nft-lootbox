@@ -75,7 +75,7 @@ module.exports = {
     solidity: {
         compilers: [
             {
-                version: "0.8.10",
+                version: "0.8.11",
                 settings: {
                     optimizer: {
                         enabled: true,
@@ -108,7 +108,7 @@ module.exports = {
     },
     contractSizer: {
         alphaSort: true,
-        runOnCompile: false,
+        runOnCompile: true,
         disambiguatePaths: false,
     },
     gasReporter: {

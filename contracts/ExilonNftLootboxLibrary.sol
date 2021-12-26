@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.10;
+pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -58,13 +58,13 @@ library ExilonNftLootboxLibrary {
         address from,
         address to,
         bool requireSuccess
-    ) external {
+    ) public {
         if (tokenInfo.tokenType == TokenType.ERC20) {
             if (from == address(this)) {
                 if (requireSuccess) {
                     IERC20(tokenInfo.tokenAddress).safeTransfer(to, tokenInfo.amount);
                 } else {
-                    (bool success, ) = tokenInfo.tokenAddress.call{ gas: MAX_GAS_FOR_TRANSFER }(
+                    (bool success, ) = tokenInfo.tokenAddress.call{gas: MAX_GAS_FOR_TRANSFER}(
                         abi.encodeWithSelector(IERC20.transfer.selector, to, tokenInfo.amount)
                     );
                     if (!success) {
@@ -80,7 +80,7 @@ library ExilonNftLootboxLibrary {
                 if (requireSuccess) {
                     IERC20(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.amount);
                 } else {
-                    (bool success, ) = tokenInfo.tokenAddress.call{ gas: MAX_GAS_FOR_TRANSFER }(
+                    (bool success, ) = tokenInfo.tokenAddress.call{gas: MAX_GAS_FOR_TRANSFER}(
                         abi.encodeWithSelector(
                             IERC20.transferFrom.selector,
                             from,
@@ -102,7 +102,7 @@ library ExilonNftLootboxLibrary {
             if (requireSuccess) {
                 IERC721(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.id);
             } else {
-                (bool success, ) = tokenInfo.tokenAddress.call{ gas: MAX_GAS_FOR_TRANSFER }(
+                (bool success, ) = tokenInfo.tokenAddress.call{gas: MAX_GAS_FOR_TRANSFER}(
                     abi.encodeWithSignature(
                         "safeTransferFrom(address,address,uint256)",
                         from,
@@ -124,7 +124,7 @@ library ExilonNftLootboxLibrary {
                     ""
                 );
             } else {
-                (bool success, ) = tokenInfo.tokenAddress.call{ gas: MAX_GAS_FOR_TRANSFER }(
+                (bool success, ) = tokenInfo.tokenAddress.call{gas: MAX_GAS_FOR_TRANSFER}(
                     abi.encodeWithSelector(
                         IERC1155.safeTransferFrom.selector,
                         from,
@@ -147,7 +147,44 @@ library ExilonNftLootboxLibrary {
         }
     }
 
-    function processTokensInfo(WinningPlace[] calldata winningPlaces) external view returns(TokenInfo[] memory allTokensInfo, uint256 amountOfLootBoxes) {
+    function transferFundsToFundsHolder(
+        TokenInfo[] memory allTokensInfo,
+        address fundsHolder,
+        uint256 id,
+        mapping(uint256 => mapping(address => uint256)) storage totalSharesOfERC20
+    ) external {
+        for (uint256 i = 0; i < allTokensInfo.length; ++i) {
+            withdrawToken(allTokensInfo[i], msg.sender, fundsHolder, true);
+
+            if (allTokensInfo[i].tokenType == TokenType.ERC20) {
+                totalSharesOfERC20[id][allTokensInfo[i].tokenAddress] = allTokensInfo[i].amount;
+            }
+        }
+    }
+
+    function getRandomNumber(uint256 nonce, uint256 upperLimit) external view returns (uint256) {
+        return
+            uint256(
+                keccak256(
+                    abi.encodePacked(
+                        block.timestamp,
+                        block.number,
+                        msg.sender,
+                        nonce,
+                        blockhash(block.number - 1),
+                        blockhash(block.number - 2),
+                        block.coinbase,
+                        block.difficulty
+                    )
+                )
+            ) % upperLimit;
+    }
+
+    function processTokensInfo(WinningPlace[] calldata winningPlaces)
+        external
+        view
+        returns (TokenInfo[] memory allTokensInfo, uint256 amountOfLootBoxes)
+    {
         allTokensInfo = new TokenInfo[](MAX_TOKENS_IN_LOOTBOX);
         uint256 lastIndex = 0;
 
@@ -209,7 +246,9 @@ library ExilonNftLootboxLibrary {
         }
 
         uint256 numberToDecrease = MAX_TOKENS_IN_LOOTBOX - lastIndex;
-        assembly { mstore(allTokensInfo, sub(mload(allTokensInfo), numberToDecrease)) }
+        assembly {
+            mstore(allTokensInfo, sub(mload(allTokensInfo), numberToDecrease))
+        }
     }
 
     function _findTokenInTokenInfoArray(
@@ -226,10 +265,11 @@ library ExilonNftLootboxLibrary {
         return type(uint256).max;
     }
 
-    function getWinningIndex(
-        WinningPlace[] memory restPrizes,
-        uint256 randomNumber
-    ) external pure returns (uint256 winningIndex) {
+    function getWinningIndex(WinningPlace[] memory restPrizes, uint256 randomNumber)
+        external
+        pure
+        returns (uint256 winningIndex)
+    {
         winningIndex = type(uint256).max;
         uint256 amountPassed;
         for (uint256 j = 0; j < restPrizes.length && winningIndex == type(uint256).max; ++j) {

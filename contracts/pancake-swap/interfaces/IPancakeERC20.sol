@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.11;
 
 interface IPancakeERC20 {
     event Approval(address indexed owner, address indexed spender, uint256 value);

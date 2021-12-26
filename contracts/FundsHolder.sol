@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.10;
+pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
@@ -12,7 +12,7 @@ contract FundsHolder is ERC1155Holder, ERC721Holder {
 
     address public factory;
 
-    modifier onlyFactory {
+    modifier onlyFactory() {
         require(msg.sender == factory, "FundsHolder: Not allowed");
         _;
     }
@@ -26,13 +26,19 @@ contract FundsHolder is ERC1155Holder, ERC721Holder {
         factory = msg.sender;
     }
 
-    function withdrawTokens(ExilonNftLootboxLibrary.TokenInfo[] memory tokenInfo, address to) external onlyFactory {
+    function withdrawTokens(ExilonNftLootboxLibrary.TokenInfo[] memory tokenInfo, address to)
+        external
+        onlyFactory
+    {
         for (uint256 i = 0; i < tokenInfo.length; ++i) {
             ExilonNftLootboxLibrary.withdrawToken(tokenInfo[i], address(this), to, false);
         }
     }
 
-    function withdrawToken(ExilonNftLootboxLibrary.TokenInfo memory tokenInfo, address to) external onlyFactory {
+    function withdrawToken(ExilonNftLootboxLibrary.TokenInfo memory tokenInfo, address to)
+        external
+        onlyFactory
+    {
         ExilonNftLootboxLibrary.withdrawToken(tokenInfo, address(this), to, false);
     }
 

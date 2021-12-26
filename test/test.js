@@ -37,9 +37,14 @@ describe("Exilon Nft Lootbox test", function () {
         const PancakeFactoryFactory = await hre.ethers.getContractFactory("PancakeFactory");
         PancakeFactoryInst = await PancakeFactoryFactory.deploy(feeToSetter.address);
         const PancakeRouterFactory = await hre.ethers.getContractFactory("PancakeRouter");
-        PancakeRouterInst = await PancakeRouterFactory.deploy(PancakeFactoryInst.address, WETHInst.address);
+        PancakeRouterInst = await PancakeRouterFactory.deploy(
+            PancakeFactoryInst.address,
+            WETHInst.address
+        );
 
-        const ExilonNftLootboxLibraryFactory = await hre.ethers.getContractFactory("ExilonNftLootboxLibrary");
+        const ExilonNftLootboxLibraryFactory = await hre.ethers.getContractFactory(
+            "ExilonNftLootboxLibrary"
+        );
         ExilonNftLootboxLibraryInst = await ExilonNftLootboxLibraryFactory.deploy();
 
         const ERC20TestFactorty = await hre.ethers.getContractFactory("ERC20Test");
@@ -56,7 +61,7 @@ describe("Exilon Nft Lootbox test", function () {
         const ExilonNftLootboxFactory = await hre.ethers.getContractFactory("ExilonNftLootbox", {
             libraries: {
                 ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
-            }
+            },
         });
         ExilonNftLootboxInst = await ExilonNftLootboxFactory.deploy(
             ExilonInst.address,
@@ -116,9 +121,9 @@ describe("Exilon Nft Lootbox test", function () {
                     tokenAddress: Erc20Inst.address,
                     tokenType: 0,
                     id: 0,
-                    amount: amountOfErc20ToBox
-                }
-            ]
+                    amount: amountOfErc20ToBox,
+                },
+            ],
         });
         prizeInfo.push({
             placeAmounts: 1,
@@ -127,9 +132,9 @@ describe("Exilon Nft Lootbox test", function () {
                     tokenAddress: Erc721Inst.address,
                     tokenType: 1,
                     id: idOfErc721,
-                    amount: 0
-                }
-            ]
+                    amount: 0,
+                },
+            ],
         });
         prizeInfo.push({
             placeAmounts: 1,
@@ -138,26 +143,31 @@ describe("Exilon Nft Lootbox test", function () {
                     tokenAddress: Erc1155Inst.address,
                     tokenType: 2,
                     id: idOfErc1155,
-                    amount: amountOfErc1155
-                }
-            ]
+                    amount: amountOfErc1155,
+                },
+            ],
         });
         prizeInfo.push({
             placeAmounts: 2,
-            prizesInfo: []
+            prizesInfo: [],
         });
 
         expect(await Erc20Inst.balanceOf(deployer.address)).to.be.equals(amountOfErc20ToBox);
         expect(await Erc721Inst.ownerOf(idOfErc721)).to.be.equals(deployer.address);
-        expect(await Erc1155Inst.balanceOf(deployer.address, idOfErc1155)).to.be.equals(amountOfErc1155);
-
-        await ExilonNftLootboxInst.makeLootBox(
-            prizeInfo,
-            OneUsd,
-            true,
-            "",
-            { value: await ExilonNftLootboxInst.getBnbPriceToCreate() }
+        expect(await Erc1155Inst.balanceOf(deployer.address, idOfErc1155)).to.be.equals(
+            amountOfErc1155
         );
+
+        await ExilonNftLootboxInst.makeLootBox(prizeInfo, OneUsd, true, "", {
+            value: await ExilonNftLootboxInst.getBnbPriceToCreate(),
+        });
+
+        expect(
+            await ExilonNftLootboxInst.getUsersIdsLength(ExilonNftLootboxInst.address)
+        ).to.be.equals(1);
+        let ids = await ExilonNftLootboxInst.getUsersIds(ExilonNftLootboxInst.address, 0, 1);
+        expect(ids.length).to.be.equals(1);
+        expect(ids[0]).to.be.equals(0);
 
         let fundsHolder = await ExilonNftLootboxInst.idsToFundsHolders(0);
 
@@ -165,10 +175,14 @@ describe("Exilon Nft Lootbox test", function () {
         expect(await Erc721Inst.ownerOf(idOfErc721)).to.be.equals(fundsHolder);
         expect(await Erc1155Inst.balanceOf(fundsHolder, idOfErc1155)).to.be.equals(amountOfErc1155);
 
-        await ExilonNftLootboxInst.connect(user).buyId(0, 5, { value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 6) });
+        await ExilonNftLootboxInst.connect(user).buyId(0, 5, {
+            value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 6),
+        });
 
         expect(await Erc20Inst.balanceOf(user.address)).to.be.equals(amountOfErc20ToBox);
         expect(await Erc721Inst.ownerOf(idOfErc721)).to.be.equals(user.address);
-        expect(await Erc1155Inst.balanceOf(user.address, idOfErc1155)).to.be.equals(amountOfErc1155);
+        expect(await Erc1155Inst.balanceOf(user.address, idOfErc1155)).to.be.equals(
+            amountOfErc1155
+        );
     });
 });

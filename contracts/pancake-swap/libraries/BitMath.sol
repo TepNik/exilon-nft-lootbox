@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.11;
 
 library BitMath {
     // returns the 0 indexed position of the most significant bit of the input x
