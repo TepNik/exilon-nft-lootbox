@@ -114,6 +114,8 @@ module.exports = {
     gasReporter: {
         currency: "USD",
         coinmarketcap: config.coinmarketcapApi,
+        token: "BNB",
+        gasPriceApi: "https://api.bscscan.com/api?module=proxy&action=eth_gasPrice"
     },
     abiExporter: {
         path: "./data/abi",

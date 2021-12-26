@@ -37,20 +37,23 @@ library ExilonNftLootboxLibrary {
         address indexed token,
         address indexed from,
         address indexed to,
-        uint256 amount
+        uint256 amount,
+        string errorMessage
     );
     event BadERC721TokenWithdraw(
         address indexed token,
         address indexed from,
         address indexed to,
-        uint256 id
+        uint256 id,
+        string errorMessage
     );
     event BadERC1155TokenWithdraw(
         address indexed token,
         address indexed from,
         address indexed to,
         uint256 id,
-        uint256 amount
+        uint256 amount,
+        string errorMessage
     );
 
     function withdrawToken(
@@ -64,15 +67,16 @@ library ExilonNftLootboxLibrary {
                 if (requireSuccess) {
                     IERC20(tokenInfo.tokenAddress).safeTransfer(to, tokenInfo.amount);
                 } else {
-                    (bool success, ) = tokenInfo.tokenAddress.call{gas: MAX_GAS_FOR_TRANSFER}(
-                        abi.encodeWithSelector(IERC20.transfer.selector, to, tokenInfo.amount)
-                    );
+                    (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
+                        gas: MAX_GAS_FOR_TRANSFER
+                    }(abi.encodeWithSelector(IERC20.transfer.selector, to, tokenInfo.amount));
                     if (!success) {
                         emit BadERC20TokenWithdraw(
                             tokenInfo.tokenAddress,
                             from,
                             to,
-                            tokenInfo.amount
+                            tokenInfo.amount,
+                            _getRevertMsg(result)
                         );
                     }
                 }
@@ -80,7 +84,9 @@ library ExilonNftLootboxLibrary {
                 if (requireSuccess) {
                     IERC20(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.amount);
                 } else {
-                    (bool success, ) = tokenInfo.tokenAddress.call{gas: MAX_GAS_FOR_TRANSFER}(
+                    (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
+                        gas: MAX_GAS_FOR_TRANSFER
+                    }(
                         abi.encodeWithSelector(
                             IERC20.transferFrom.selector,
                             from,
@@ -93,7 +99,8 @@ library ExilonNftLootboxLibrary {
                             tokenInfo.tokenAddress,
                             from,
                             to,
-                            tokenInfo.amount
+                            tokenInfo.amount,
+                            _getRevertMsg(result)
                         );
                     }
                 }
@@ -102,7 +109,9 @@ library ExilonNftLootboxLibrary {
             if (requireSuccess) {
                 IERC721(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.id);
             } else {
-                (bool success, ) = tokenInfo.tokenAddress.call{gas: MAX_GAS_FOR_TRANSFER}(
+                (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
+                    gas: MAX_GAS_FOR_TRANSFER
+                }(
                     abi.encodeWithSignature(
                         "safeTransferFrom(address,address,uint256)",
                         from,
@@ -111,7 +120,13 @@ library ExilonNftLootboxLibrary {
                     )
                 );
                 if (!success) {
-                    emit BadERC721TokenWithdraw(tokenInfo.tokenAddress, from, to, tokenInfo.id);
+                    emit BadERC721TokenWithdraw(
+                        tokenInfo.tokenAddress,
+                        from,
+                        to,
+                        tokenInfo.id,
+                        _getRevertMsg(result)
+                    );
                 }
             }
         } else if (tokenInfo.tokenType == TokenType.ERC1155) {
@@ -124,7 +139,9 @@ library ExilonNftLootboxLibrary {
                     ""
                 );
             } else {
-                (bool success, ) = tokenInfo.tokenAddress.call{gas: MAX_GAS_FOR_TRANSFER}(
+                (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
+                    gas: MAX_GAS_FOR_TRANSFER
+                }(
                     abi.encodeWithSelector(
                         IERC1155.safeTransferFrom.selector,
                         from,
@@ -140,7 +157,8 @@ library ExilonNftLootboxLibrary {
                         from,
                         to,
                         tokenInfo.id,
-                        tokenInfo.amount
+                        tokenInfo.amount,
+                        _getRevertMsg(result)
                     );
                 }
             }
@@ -304,5 +322,17 @@ library ExilonNftLootboxLibrary {
         }
 
         return restPrizes;
+    }
+
+    function _getRevertMsg(bytes memory revertData) private pure returns (string memory errorMessage) {
+        // revert data format:
+        // 4 bytes - Function selector for Error(string)
+        // 32 bytes - Data offset
+        // 32 bytes - String length
+        // other - String data
+
+        // If the revertData length is less than 68, then the transaction failed silently (without a revert message)
+        if (revertData.length < 68) return "";
+        (, errorMessage) = abi.decode(revertData, (bytes4, string)); // Remove the selector which is the first 4 bytes
     }
 }
