@@ -61,11 +61,12 @@ library ExilonNftLootboxLibrary {
         address from,
         address to,
         bool requireSuccess
-    ) public {
+    ) public returns (bool) {
         if (tokenInfo.tokenType == TokenType.ERC20) {
             if (from == address(this)) {
                 if (requireSuccess) {
                     IERC20(tokenInfo.tokenAddress).safeTransfer(to, tokenInfo.amount);
+                    return true;
                 } else {
                     (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                         gas: MAX_GAS_FOR_TRANSFER
@@ -79,10 +80,12 @@ library ExilonNftLootboxLibrary {
                             _getRevertMsg(result)
                         );
                     }
+                    return success;
                 }
             } else {
                 if (requireSuccess) {
                     IERC20(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.amount);
+                    return true;
                 } else {
                     (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                         gas: MAX_GAS_FOR_TRANSFER
@@ -103,11 +106,13 @@ library ExilonNftLootboxLibrary {
                             _getRevertMsg(result)
                         );
                     }
+                    return success;
                 }
             }
         } else if (tokenInfo.tokenType == TokenType.ERC721) {
             if (requireSuccess) {
                 IERC721(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.id);
+                return true;
             } else {
                 (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                     gas: MAX_GAS_FOR_TRANSFER
@@ -128,6 +133,7 @@ library ExilonNftLootboxLibrary {
                         _getRevertMsg(result)
                     );
                 }
+                return success;
             }
         } else if (tokenInfo.tokenType == TokenType.ERC1155) {
             if (requireSuccess) {
@@ -138,6 +144,7 @@ library ExilonNftLootboxLibrary {
                     tokenInfo.amount,
                     ""
                 );
+                return true;
             } else {
                 (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                     gas: MAX_GAS_FOR_TRANSFER
@@ -161,7 +168,10 @@ library ExilonNftLootboxLibrary {
                         _getRevertMsg(result)
                     );
                 }
+                return success;
             }
+        } else {
+            revert("ExilonNftLootboxLibrary: Wrong type of token");
         }
     }
 
@@ -207,7 +217,7 @@ library ExilonNftLootboxLibrary {
         uint256 lastIndex = 0;
 
         for (uint256 i = 0; i < winningPlaces.length; ++i) {
-            require(winningPlaces[i].placeAmounts > 0, "ExilonNftLootbox: Winning amount");
+            require(winningPlaces[i].placeAmounts > 0, "ExilonNftLootboxLibrary: Winning amount");
             amountOfLootBoxes += winningPlaces[i].placeAmounts;
 
             for (uint256 j = 0; j < winningPlaces[i].prizesInfo.length; ++j) {
@@ -216,30 +226,30 @@ library ExilonNftLootboxLibrary {
                 ];
 
                 if (currentToken.tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
-                    require(currentToken.id == 0, "ExilonNftLootbox: ERC20 no id");
-                    require(currentToken.amount > 0, "ExilonNftLootbox: ERC20 amount");
+                    require(currentToken.id == 0, "ExilonNftLootboxLibrary: ERC20 no id");
+                    require(currentToken.amount > 0, "ExilonNftLootboxLibrary: ERC20 amount");
                 } else if (currentToken.tokenType == ExilonNftLootboxLibrary.TokenType.ERC721) {
-                    require(currentToken.amount == 0, "ExilonNftLootbox: ERC721 amount");
+                    require(currentToken.amount == 0, "ExilonNftLootboxLibrary: ERC721 amount");
                     require(
                         winningPlaces[i].placeAmounts == 1,
-                        "ExilonNftLootbox: No multiple winners for ERC721"
+                        "ExilonNftLootboxLibrary: No multiple winners for ERC721"
                     );
 
                     require(
                         IERC165(currentToken.tokenAddress).supportsInterface(bytes4(0x80ac58cd)),
-                        "ExilonNftLootbox: ERC721 type"
+                        "ExilonNftLootboxLibrary: ERC721 type"
                     );
                 } else if (currentToken.tokenType == ExilonNftLootboxLibrary.TokenType.ERC1155) {
-                    require(currentToken.amount > 0, "ExilonNftLootbox: ERC1155 amount");
+                    require(currentToken.amount > 0, "ExilonNftLootboxLibrary: ERC1155 amount");
 
                     require(
                         IERC165(currentToken.tokenAddress).supportsInterface(bytes4(0xd9b67a26)),
-                        "ExilonNftLootbox: ERC1155 type"
+                        "ExilonNftLootboxLibrary: ERC1155 type"
                     );
                 }
                 currentToken.amount = currentToken.amount * winningPlaces[i].placeAmounts;
 
-                uint256 index = _findTokenInTokenInfoArray(
+                uint256 index = findTokenInTokenInfoArray(
                     allTokensInfo,
                     lastIndex,
                     currentToken.tokenAddress,
@@ -248,13 +258,13 @@ library ExilonNftLootboxLibrary {
                 if (index != type(uint256).max) {
                     require(
                         currentToken.tokenType != ExilonNftLootboxLibrary.TokenType.ERC721,
-                        "ExilonNftLootbox: Multiple ERC721"
+                        "ExilonNftLootboxLibrary: Multiple ERC721"
                     );
                     allTokensInfo[index].amount += currentToken.amount;
                 } else {
                     require(
                         lastIndex < MAX_TOKENS_IN_LOOTBOX,
-                        "ExilonNftLootbox: Too many different tokens"
+                        "ExilonNftLootboxLibrary: Too many different tokens"
                     );
                     allTokensInfo[lastIndex] = currentToken;
 
@@ -269,12 +279,12 @@ library ExilonNftLootboxLibrary {
         }
     }
 
-    function _findTokenInTokenInfoArray(
+    function findTokenInTokenInfoArray(
         ExilonNftLootboxLibrary.TokenInfo[] memory tokensInfo,
         uint256 len,
         address token,
         uint256 id
-    ) private pure returns (uint256) {
+    ) public pure returns (uint256) {
         for (uint256 i = 0; i < len; ++i) {
             if (tokensInfo[i].tokenAddress == token && tokensInfo[i].id == id) {
                 return i;
@@ -296,7 +306,7 @@ library ExilonNftLootboxLibrary {
             }
             amountPassed += restPrizes[j].placeAmounts;
         }
-        require(winningIndex != type(uint256).max, "ExilonNftLootbox: Random generator");
+        require(winningIndex != type(uint256).max, "ExilonNftLootboxLibrary: Random generator");
     }
 
     function removeWinningPlace(
@@ -322,6 +332,43 @@ library ExilonNftLootboxLibrary {
         }
 
         return restPrizes;
+    }
+
+    function sendTokenCarefully(
+        IERC20 token,
+        uint256 amount,
+        bool reequireSuccess
+    ) external returns (bool, uint256) {
+        uint256 balance;
+        if (address(token) == address(0)) {
+            balance = address(this).balance;
+        } else {
+            balance = token.balanceOf(address(this));
+        }
+
+        if (amount > balance) {
+            amount = balance;
+        }
+
+        if (amount > 0) {
+            bool success;
+            if (address(token) == address(0)) {
+                (success, ) = msg.sender.call{gas: 1_000_000, value: amount}("");
+            } else {
+                (success, ) = address(token).call{gas: 1_000_000}(
+                    abi.encodeWithSelector(IERC20.transfer.selector, msg.sender, amount)
+                );
+            }
+
+            if (reequireSuccess) {
+                require(success, "ExilonNftLootboxLibrary: Carefull token transfer failed");
+                return (true, amount);
+            } else {
+                return (success, amount);
+            }
+        } else {
+            return (true, 0);
+        }
     }
 
     function _getRevertMsg(bytes memory revertData)

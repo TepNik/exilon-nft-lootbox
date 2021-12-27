@@ -192,7 +192,7 @@ describe("Exilon Nft Lootbox test", function () {
 
         await Erc20Inst.switchTransfers();
 
-        let tx = await (
+        tx = await (
             await ExilonNftLootboxInst.connect(user).buyId(0, 5, {
                 value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 5),
             })

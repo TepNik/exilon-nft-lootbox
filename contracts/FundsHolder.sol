@@ -38,8 +38,9 @@ contract FundsHolder is ERC1155Holder, ERC721Holder {
     function withdrawToken(ExilonNftLootboxLibrary.TokenInfo memory tokenInfo, address to)
         external
         onlyFactory
+        returns (bool)
     {
-        ExilonNftLootboxLibrary.withdrawToken(tokenInfo, address(this), to, false);
+        return ExilonNftLootboxLibrary.withdrawToken(tokenInfo, address(this), to, false);
     }
 
     function selfDestruct() external onlyFactory {

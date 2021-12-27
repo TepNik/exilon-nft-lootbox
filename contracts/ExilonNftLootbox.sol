@@ -63,10 +63,11 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
         _;
     }
 
-    event LootboxMaded(address indexed maker, uint256 id, uint256 amount, uint256 openingPrice);
+    event LootboxMaded(address indexed maker, uint256 id, uint256 amount);
     event WithdrawLootbox(address indexed maker, uint256 id, uint256 amount);
     event IdDeleted(uint256 id, address indexed fundsHolder);
     event FeesCollected(address indexed user, uint256 bnbAmount, uint256 usdAmount);
+    event SuccessfullyWithdrawnTokens(ExilonNftLootboxLibrary.TokenInfo[] tokens);
 
     event PriceChanges(
         uint256 newCreatingPrice,
@@ -168,7 +169,7 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
         _idsToUri[lastId] = _uri;
         emit URI(_uri, lastId);
 
-        emit LootboxMaded(msg.sender, lastId, amountOfLootBoxes, _openingPrice);
+        emit LootboxMaded(msg.sender, lastId, amountOfLootBoxes);
     }
 
     function withdrawPrize(uint256 id, uint256 amount) external payable nonReentrant onlyEOA {
@@ -188,28 +189,7 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
         onlyRole(DEFAULT_ADMIN_ROLE)
         nonReentrant
     {
-        if (address(token) != address(0)) {
-            uint256 tokenBalance = token.balanceOf(address(this));
-            if (amount == 0 || amount > tokenBalance) {
-                amount = tokenBalance;
-            }
-            if (amount == 0) {
-                return;
-            }
-
-            token.safeTransfer(msg.sender, amount);
-        } else {
-            uint256 ethAmount = address(this).balance;
-            if (amount == 0 || amount > ethAmount) {
-                amount = ethAmount;
-            }
-            if (amount == 0) {
-                return;
-            }
-
-            (bool success, ) = msg.sender.call{value: amount}("");
-            require(success, "ExilonNftLootbox: Eth transfer failed");
-        }
+        ExilonNftLootboxLibrary.sendTokenCarefully(token, amount, true);
     }
 
     function setPriceInfo(
@@ -330,16 +310,35 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
         ExilonNftLootboxLibrary.WinningPlace[] memory _prizes = prizes[id];
         uint256 restLootboxes = lootxesAmount[id];
         address _fundsHolder = idsToFundsHolders[id];
+
+        ExilonNftLootboxLibrary.TokenInfo[]
+            memory successWithdrawTokens = new ExilonNftLootboxLibrary.TokenInfo[](
+                ExilonNftLootboxLibrary.MAX_TOKENS_IN_LOOTBOX
+            );
+        uint256 lastIndex = 0;
+
         for (uint256 i = 0; i < amount; ++i) {
             uint256 randomNumber = ExilonNftLootboxLibrary.getRandomNumber(++nonce, restLootboxes);
             restLootboxes -= 1;
 
             uint256 winningIndex = ExilonNftLootboxLibrary.getWinningIndex(_prizes, randomNumber);
 
-            _withdrawWinningPlace(_prizes[winningIndex].prizesInfo, id, _fundsHolder);
+            (successWithdrawTokens, lastIndex) = _withdrawWinningPlace(
+                _prizes[winningIndex].prizesInfo,
+                id,
+                _fundsHolder,
+                successWithdrawTokens,
+                lastIndex
+            );
 
             _prizes = ExilonNftLootboxLibrary.removeWinningPlace(_prizes, id, winningIndex, prizes);
         }
+
+        uint256 numberToDecrease = ExilonNftLootboxLibrary.MAX_TOKENS_IN_LOOTBOX - lastIndex;
+        assembly {
+            mstore(successWithdrawTokens, sub(mload(successWithdrawTokens), numberToDecrease))
+        }
+
         lootxesAmount[id] = restLootboxes;
         _nonce = nonce;
 
@@ -348,6 +347,7 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
         }
 
         emit WithdrawLootbox(msg.sender, id, amount);
+        emit SuccessfullyWithdrawnTokens(successWithdrawTokens);
     }
 
     function _deleteId(uint256 id, address fundsHolder) private {
@@ -405,45 +405,64 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
     }
 
     function _sendExilonToOpenner() private {
-        uint256 _amountOfExilonToOpenner = amountOfExilonToOpenner;
-        uint256 balance = exilon.balanceOf(address(this));
+        (bool success, uint256 amount) = ExilonNftLootboxLibrary.sendTokenCarefully(
+            exilon,
+            amountOfExilonToOpenner,
+            false
+        );
 
-        if (_amountOfExilonToOpenner > balance) {
-            _amountOfExilonToOpenner = balance;
-        }
-
-        if (_amountOfExilonToOpenner > 0) {
-            (bool success, ) = address(exilon).call{gas: 1_000_000}(
-                abi.encodeWithSelector(
-                    IERC20.transfer.selector,
-                    msg.sender,
-                    _amountOfExilonToOpenner
-                )
-            );
-            if (!success) {
-                emit BadExilonTransfer(msg.sender, _amountOfExilonToOpenner);
-            }
+        if (!success) {
+            emit BadExilonTransfer(msg.sender, amount);
         }
     }
 
     function _withdrawWinningPlace(
         ExilonNftLootboxLibrary.TokenInfo[] memory prizeInfo,
         uint256 id,
-        address fundsHolder
-    ) private {
-        for (uint256 j = 0; j < prizeInfo.length; ++j) {
-            if (prizeInfo[j].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
-                uint256 _totalShares = totalSharesOfERC20[id][prizeInfo[j].tokenAddress];
-                uint256 oldAmount = prizeInfo[j].amount;
+        address fundsHolder,
+        ExilonNftLootboxLibrary.TokenInfo[] memory successWithdrawTokens,
+        uint256 lastIndex
+    ) private returns (ExilonNftLootboxLibrary.TokenInfo[] memory, uint256) {
+        for (uint256 i = 0; i < prizeInfo.length; ++i) {
+            uint256 balanceBefore;
+            if (prizeInfo[i].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
+                uint256 _totalShares = totalSharesOfERC20[id][prizeInfo[i].tokenAddress];
+                uint256 oldAmount = prizeInfo[i].amount;
 
-                prizeInfo[j].amount =
-                    (IERC20(prizeInfo[j].tokenAddress).balanceOf(fundsHolder) * oldAmount) /
+                prizeInfo[i].amount =
+                    (IERC20(prizeInfo[i].tokenAddress).balanceOf(fundsHolder) * oldAmount) /
                     _totalShares;
 
-                totalSharesOfERC20[id][prizeInfo[j].tokenAddress] = _totalShares - oldAmount;
+                totalSharesOfERC20[id][prizeInfo[i].tokenAddress] = _totalShares - oldAmount;
+
+                balanceBefore = IERC20(prizeInfo[i].tokenAddress).balanceOf(msg.sender);
             }
-            FundsHolder(fundsHolder).withdrawToken(prizeInfo[j], msg.sender);
+
+            bool success = FundsHolder(fundsHolder).withdrawToken(prizeInfo[i], msg.sender);
+
+            if (success) {
+                if (prizeInfo[i].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
+                    uint256 balanceAfter = IERC20(prizeInfo[i].tokenAddress).balanceOf(msg.sender);
+                    prizeInfo[i].amount = balanceAfter - balanceBefore;
+                }
+
+                uint256 index = ExilonNftLootboxLibrary.findTokenInTokenInfoArray(
+                    successWithdrawTokens,
+                    lastIndex,
+                    prizeInfo[i].tokenAddress,
+                    prizeInfo[i].id
+                );
+                if (index != type(uint256).max) {
+                    successWithdrawTokens[index].amount += prizeInfo[i].amount;
+                } else {
+                    successWithdrawTokens[lastIndex] = prizeInfo[i];
+
+                    ++lastIndex;
+                }
+            }
         }
+
+        return (successWithdrawTokens, lastIndex);
     }
 
     function _beforeTokenTransfer(
