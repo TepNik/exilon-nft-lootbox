@@ -6,8 +6,11 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
+
+import "./interfaces/IExilon.sol";
 
 library ExilonNftLootboxLibrary {
     using SafeERC20 for IERC20;
@@ -179,9 +182,18 @@ library ExilonNftLootboxLibrary {
         TokenInfo[] memory allTokensInfo,
         address fundsHolder,
         uint256 id,
+        address exilon,
         mapping(uint256 => mapping(address => uint256)) storage totalSharesOfERC20
     ) external {
         for (uint256 i = 0; i < allTokensInfo.length; ++i) {
+            if (
+                allTokensInfo[i].tokenAddress == exilon &&
+                AccessControl(exilon).hasRole(bytes32(0), address(this)) &&
+                !IExilon(exilon).isExcludedFromPayingFees(fundsHolder)
+            ) {
+                IExilon(exilon).excludeFromPayingFees(fundsHolder);
+            }
+
             withdrawToken(allTokensInfo[i], msg.sender, fundsHolder, true);
 
             if (allTokensInfo[i].tokenType == TokenType.ERC20) {
@@ -386,7 +398,11 @@ library ExilonNftLootboxLibrary {
             totalAmountOfSharesForWinnginPlace) / totalShares;
 
         if (uint256Parameters[0] == 1) {
-            return [totalAmountOfFundsForWinningPlace, totalAmountOfSharesForWinnginPlace, prizeInfoAmount];
+            return [
+                totalAmountOfFundsForWinningPlace,
+                totalAmountOfSharesForWinnginPlace,
+                prizeInfoAmount
+            ];
         }
 
         uint256 randomNumber = getRandomNumber(uint256Parameters[3], 1000);
@@ -411,13 +427,19 @@ library ExilonNftLootboxLibrary {
             (((maxSharesAmount - minSharesAmount) * randomNumber**uint256Parameters[6]) /
                 1000**uint256Parameters[6]);
 
-        uint256 newPrizeInfoAmount = (totalAmountOfSharesForWinnginPlace - sharesAmount) / (uint256Parameters[0] - 1);
+        uint256 newPrizeInfoAmount = (totalAmountOfSharesForWinnginPlace - sharesAmount) /
+            (uint256Parameters[0] - 1);
 
         // 0 - raw amount, 1 - amount in shares
         return [winningAmount, sharesAmount, newPrizeInfoAmount];
     }
 
-    function getBnbAmount(IPancakeRouter02 pancakeRouter, address weth, address usdToken, uint256 amount) external view returns (uint256) {
+    function getBnbAmount(
+        IPancakeRouter02 pancakeRouter,
+        address weth,
+        address usdToken,
+        uint256 amount
+    ) external view returns (uint256) {
         address[] memory path = new address[](2);
         path[0] = weth;
         path[1] = usdToken;

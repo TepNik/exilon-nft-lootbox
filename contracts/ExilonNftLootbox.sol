@@ -29,7 +29,6 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
 
     // info abount prizes
     mapping(uint256 => ExilonNftLootboxLibrary.WinningPlace[]) public prizes;
-    mapping(uint256 => mapping(address => uint256)) public totalSharesOfERC20;
     mapping(uint256 => uint256) public lootxesAmount;
 
     // info about prices
@@ -40,9 +39,9 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
     uint256 public extraPriceForFront = 500; // 5%
 
     // random parameters
-    uint256 minRandomPercentage = 8_000; // 80%
-    uint256 maxRandomPercentage = 30_000; // 300%
-    uint256 powParameter = 3;
+    uint256 minRandomPercentage = 9_000; // 90%
+    uint256 maxRandomPercentage = 15_000; // 150%
+    uint256 powParameter = 5;
 
     uint256 public amountOfExilonToOpenner;
 
@@ -56,7 +55,9 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
 
     // private
 
-    address private immutable weth;
+    address private immutable _weth;
+
+    mapping(uint256 => mapping(address => uint256)) private _totalSharesOfERC20;
 
     uint256 private _lastId;
     mapping(uint256 => string) private _idsToUri;
@@ -112,7 +113,7 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
         masterContract = address(_masterContract);
 
         pancakeRouter = _pancakeRouter;
-        weth = _pancakeRouter.WETH();
+        _weth = _pancakeRouter.WETH();
 
         feeReceiver = _feeReceiver;
 
@@ -170,7 +171,8 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
             allTokensInfo,
             address(fundsHolder),
             lastId,
-            totalSharesOfERC20
+            address(exilon),
+            _totalSharesOfERC20
         );
 
         for (uint256 i = 0; i < winningPlaces.length; ++i) {
@@ -315,16 +317,13 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
                     result[i].prizesInfo[j].amount =
                         (IERC20(result[i].prizesInfo[j].tokenAddress).balanceOf(_fundsHolder) *
                             result[i].prizesInfo[j].amount) /
-                        totalSharesOfERC20[id][result[i].prizesInfo[j].tokenAddress];
+                        _totalSharesOfERC20[id][result[i].prizesInfo[j].tokenAddress];
                 }
             }
         }
     }
 
-    function _withdrawPrize(
-        address redeemer,
-        uint256[2] memory idAndAmount
-    ) private {
+    function _withdrawPrize(address redeemer, uint256[2] memory idAndAmount) private {
         require(idAndAmount[1] > 0, "ExilonNftLootbox: Low amount");
 
         _burn(redeemer, idAndAmount[0], idAndAmount[1]);
@@ -361,7 +360,12 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
 
             uint256 winningIndex = ExilonNftLootboxLibrary.getWinningIndex(_prizes, randomNumber);
 
-            (_prizes[winningIndex].prizesInfo, successWithdrawTokens, lastIndex, nonce) = _withdrawWinningPlace(
+            (
+                _prizes[winningIndex].prizesInfo,
+                successWithdrawTokens,
+                lastIndex,
+                nonce
+            ) = _withdrawWinningPlace(
                 _prizes[winningIndex].prizesInfo,
                 _fundsHolder,
                 [
@@ -376,7 +380,12 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
                 successWithdrawTokens
             );
 
-            _prizes = ExilonNftLootboxLibrary.removeWinningPlace(_prizes, idAndAmount[0], winningIndex, prizes);
+            _prizes = ExilonNftLootboxLibrary.removeWinningPlace(
+                _prizes,
+                idAndAmount[0],
+                winningIndex,
+                prizes
+            );
         }
 
         uint256 numberToDecrease = ExilonNftLootboxLibrary.MAX_TOKENS_IN_LOOTBOX - lastIndex;
@@ -444,7 +453,7 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
 
     function _getBnbAmount(uint256 amount) private view returns (uint256) {
         address[] memory path = new address[](2);
-        path[0] = weth;
+        path[0] = _weth;
         path[1] = usdToken;
         return (pancakeRouter.getAmountsIn(amount, path))[0];
     }
@@ -480,14 +489,14 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
             uint256 balanceBefore;
             uint256 newPrizeInfoAmount;
             if (prizeInfo[i].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
-                /* uint256 totalShares = totalSharesOfERC20[uint256Parameters[1]][
+                /* uint256 totalShares = _totalSharesOfERC20[uint256Parameters[1]][
                     prizeInfo[i].tokenAddress
                 ]; */
 
                 ++uint256Parameters[3];
                 uint256[3] memory winningAmountInfo = ExilonNftLootboxLibrary.getWinningAmount(
                     //totalShares,
-                    totalSharesOfERC20[uint256Parameters[1]][prizeInfo[i].tokenAddress],
+                    _totalSharesOfERC20[uint256Parameters[1]][prizeInfo[i].tokenAddress],
                     prizeInfo[i].amount,
                     prizeInfo[i].tokenAddress,
                     fundsHolder,
@@ -497,10 +506,12 @@ contract ExilonNftLootbox is AccessControl, ReentrancyGuard, ERC1155, ERC1155Hol
                 prizeInfo[i].amount = winningAmountInfo[0];
                 newPrizeInfoAmount = winningAmountInfo[2];
 
-                /* totalSharesOfERC20[uint256Parameters[1]][prizeInfo[i].tokenAddress] =
+                /* _totalSharesOfERC20[uint256Parameters[1]][prizeInfo[i].tokenAddress] =
                     totalShares -
                     winningAmountInfo[1]; */
-                totalSharesOfERC20[uint256Parameters[1]][prizeInfo[i].tokenAddress] -= winningAmountInfo[1];
+                _totalSharesOfERC20[uint256Parameters[1]][
+                    prizeInfo[i].tokenAddress
+                ] -= winningAmountInfo[1];
 
                 balanceBefore = IERC20(prizeInfo[i].tokenAddress).balanceOf(msg.sender);
             } else {
