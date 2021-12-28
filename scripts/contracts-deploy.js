@@ -1,6 +1,6 @@
 const hre = require("hardhat");
 
-const config = require("../config.js");
+const config = require("../config.json");
 
 async function main() {
     if (hre.network.name != "bscTestnet" && hre.network.name != "bscMainnet") {
@@ -14,7 +14,7 @@ async function main() {
     let usdAddress;
     let dexRouterAddress;
     let feeReceiverAddress = deployer.address;
-    if (hre.network.name != "bscTestnet") {
+    if (hre.network.name == "bscTestnet") {
         exilonAddress = config.exilonAddressTestnet;
         usdAddress = config.usdAddressTestnet;
         dexRouterAddress = config.dexRouterTestnet;
@@ -27,6 +27,7 @@ async function main() {
     const ExilonNftLootboxLibraryFactory = await hre.ethers.getContractFactory(
         "ExilonNftLootboxLibrary"
     );
+    console.log("Deploying ExilonNftLootboxLibrary...");
     const ExilonNftLootboxLibraryInst = await ExilonNftLootboxLibraryFactory.deploy();
     await ExilonNftLootboxLibraryInst.deployed();
     await hre.run("verify:verify", {
@@ -39,6 +40,7 @@ async function main() {
         },
     });
     let arguments = [exilonAddress, usdAddress, dexRouterAddress, feeReceiverAddress];
+    console.log("Deploying ExilonNftLootbox...");
     const ExilonNftLootboxInst = await ExilonNftLootboxFactory.deploy(...arguments);
     await ExilonNftLootboxInst.deployed();
     await hre.run("verify:verify", {
@@ -55,6 +57,7 @@ async function main() {
 
     const ERC721MainFactory = await hre.ethers.getContractFactory("ERC721Main");
     arguments = [usdAddress, dexRouterAddress, feeReceiverAddress];
+    console.log("Deploying ERC721Main...");
     const ERC721MainInst = await ERC721MainFactory.deploy(...arguments);
     await ERC721MainInst.deployed();
     await hre.run("verify:verify", {
@@ -63,6 +66,7 @@ async function main() {
     });
 
     const ERC1155MainFactory = await hre.ethers.getContractFactory("ERC1155Main");
+    console.log("Deploying ERC1155Main...");
     const ERC1155MainInst = await ERC1155MainFactory.deploy(...arguments);
     await ERC1155MainInst.deployed();
     await hre.run("verify:verify", {
@@ -75,6 +79,7 @@ async function main() {
             ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
         },
     });
+    console.log("Deploying NftMarketplace...");
     const NftMarketplaceInst = await NftMarketplaceFactory.deploy(...arguments);
     await NftMarketplaceInst.deployed();
     await hre.run("verify:verify", {

@@ -57,10 +57,12 @@ module.exports = {
         bscMainnet: {
             url: "https://bsc-dataseed3.binance.org",
             accounts: config.mainnetAccounts,
+            timeout: 100000000
         },
         bscTestnet: {
             url: "https://data-seed-prebsc-1-s1.binance.org:8545",
             accounts: config.testnetAccounts,
+            timeout: 100000000
         },
         polygonMainnet: {
             url: "https://rpc-mainnet.maticvigil.com",
