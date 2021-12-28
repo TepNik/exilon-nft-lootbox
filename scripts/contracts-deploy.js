@@ -13,7 +13,6 @@ async function main() {
     let exilonAddress;
     let usdAddress;
     let dexRouterAddress;
-    let feeReceiverAddress = deployer.address;
     if (hre.network.name == "bscTestnet") {
         exilonAddress = config.exilonAddressTestnet;
         usdAddress = config.usdAddressTestnet;
@@ -23,6 +22,12 @@ async function main() {
         usdAddress = config.usdAddressMainnet;
         dexRouterAddress = config.dexRouterMainnet;
     }
+
+    const FeeReceiverFactory = await hre.ethers.getContractFactory("FeeReceiver");
+    FeeReceiverInst = await FeeReceiverFactory.deploy(
+        config.feeReceivers,
+        config.feeReceiverAmounts
+    );
 
     const ExilonNftLootboxLibraryFactory = await hre.ethers.getContractFactory(
         "ExilonNftLootboxLibrary"
@@ -39,7 +44,7 @@ async function main() {
             ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
         },
     });
-    let arguments = [exilonAddress, usdAddress, dexRouterAddress, feeReceiverAddress];
+    let arguments = [exilonAddress, usdAddress, dexRouterAddress, FeeReceiverInst.address];
     console.log("Deploying ExilonNftLootbox...");
     const ExilonNftLootboxInst = await ExilonNftLootboxFactory.deploy(...arguments);
     await ExilonNftLootboxInst.deployed();
@@ -56,7 +61,7 @@ async function main() {
     }); */
 
     const ERC721MainFactory = await hre.ethers.getContractFactory("ERC721Main");
-    arguments = [usdAddress, dexRouterAddress, feeReceiverAddress];
+    arguments = [usdAddress, dexRouterAddress, FeeReceiverInst.address];
     console.log("Deploying ERC721Main...");
     const ERC721MainInst = await ERC721MainFactory.deploy(...arguments);
     await ERC721MainInst.deployed();

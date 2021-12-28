@@ -19,6 +19,10 @@ describe("Exilon Nft Lootbox test", function () {
     let ExilonNftLootboxLibraryInst;
     let ExilonNftLootboxInst;
 
+    let FeeReceiverInst;
+    let feeRecipients;
+    let feeRecipientAmounts;
+
     let ExilonInst;
     let UsdInst;
     let Erc20Inst;
@@ -31,7 +35,8 @@ describe("Exilon Nft Lootbox test", function () {
     let feeReceiver;
 
     beforeEach(async () => {
-        [deployer, feeToSetter, feeReceiver, user] = await ethers.getSigners();
+        [deployer, feeToSetter, feeReceiver, user, feeReceiver1, feeReceiver2] =
+            await ethers.getSigners();
 
         const WETHFactory = await hre.ethers.getContractFactory("WETH");
         WETHInst = await WETHFactory.deploy();
@@ -42,6 +47,12 @@ describe("Exilon Nft Lootbox test", function () {
             PancakeFactoryInst.address,
             WETHInst.address
         );
+
+        const FeeReceiverFactory = await hre.ethers.getContractFactory("FeeReceiver");
+        feeRecipients = [feeReceiver1.address, feeReceiver2.address];
+        feeRecipientAmounts = [1, 2];
+        FeeReceiverInst = await FeeReceiverFactory.deploy(feeRecipients, feeRecipientAmounts);
+        await FeeReceiverInst.setMinimalAmountToDistribute(0);
 
         const ExilonNftLootboxLibraryFactory = await hre.ethers.getContractFactory(
             "ExilonNftLootboxLibrary"
@@ -68,7 +79,7 @@ describe("Exilon Nft Lootbox test", function () {
             ExilonInst.address,
             UsdInst.address,
             PancakeRouterInst.address,
-            feeReceiver.address
+            FeeReceiverInst.address
         );
 
         let amountOfExilonToPair = OneExilon.mul(1000);
