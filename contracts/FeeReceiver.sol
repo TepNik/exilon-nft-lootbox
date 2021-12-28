@@ -2,10 +2,14 @@
 
 pragma solidity 0.8.11;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 contract FeeReceiver is AccessControl {
+    using SafeERC20 for IERC20;
+
     address[] public feeRecipients;
     uint256[] public feeRecipientAmounts;
 
@@ -36,6 +40,30 @@ contract FeeReceiver is AccessControl {
 
     function distribute() external {
         _distribute(true);
+    }
+
+    function withdrawToken(address token, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 balance;
+        if (token == address(0)) {
+            balance = address(this).balance;
+        } else {
+            balance = IERC20(token).balanceOf(address(this));
+        }
+
+        if (balance == 0) {
+            return;
+        }
+
+        if (amount == 0 || amount > balance) {
+            amount = balance;
+        }
+
+        if (token == address(0)) {
+            (bool success, ) = msg.sender.call{value: amount}("");
+            require(success, "FeeReceiver: Withdraw failed");
+        } else {
+            IERC20(token).safeTransfer(msg.sender, amount);
+        }
     }
 
     function _distribute(bool isForce) private {
