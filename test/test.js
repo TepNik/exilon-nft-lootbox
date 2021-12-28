@@ -101,7 +101,7 @@ describe("Exilon Nft Lootbox test", function () {
     });
 
     it("Pack and unpack test", async () => {
-        let amountOfErc20ToBox = OneToken.mul(10);
+        let amountOfErc20ToBox = OneToken.mul(40);
         await Erc20Inst.mint(amountOfErc20ToBox);
         await Erc20Inst.approve(ExilonNftLootboxInst.address, amountOfErc20ToBox);
 
@@ -116,13 +116,30 @@ describe("Exilon Nft Lootbox test", function () {
 
         let prizeInfo = [];
         prizeInfo.push({
-            placeAmounts: 1,
+            placeAmounts: 2,
             prizesInfo: [
                 {
                     tokenAddress: Erc20Inst.address,
                     tokenType: 0,
                     id: 0,
-                    amount: amountOfErc20ToBox,
+                    amount: amountOfErc20ToBox.div(8),
+                },
+                {
+                    tokenAddress: Erc20Inst.address,
+                    tokenType: 0,
+                    id: 0,
+                    amount: amountOfErc20ToBox.div(8),
+                },
+            ],
+        });
+        prizeInfo.push({
+            placeAmounts: 2,
+            prizesInfo: [
+                {
+                    tokenAddress: Erc20Inst.address,
+                    tokenType: 0,
+                    id: 0,
+                    amount: amountOfErc20ToBox.div(4),
                 },
             ],
         });
@@ -178,8 +195,8 @@ describe("Exilon Nft Lootbox test", function () {
 
         let snapshotBeforeOpening = await snapshot();
 
-        await ExilonNftLootboxInst.connect(user).buyId(0, 5, {
-            value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 6),
+        await ExilonNftLootboxInst.connect(user).buyId(0, 8, {
+            value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 8),
         });
 
         expect(await Erc20Inst.balanceOf(user.address)).to.be.equals(amountOfErc20ToBox);
@@ -193,8 +210,8 @@ describe("Exilon Nft Lootbox test", function () {
         await Erc20Inst.switchTransfers();
 
         tx = await (
-            await ExilonNftLootboxInst.connect(user).buyId(0, 5, {
-                value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 5),
+            await ExilonNftLootboxInst.connect(user).buyId(0, 8, {
+                value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 8),
             })
         ).wait();
         for (let i = 0; i < tx.events.length; ++i) {
@@ -212,8 +229,8 @@ describe("Exilon Nft Lootbox test", function () {
         await Erc721Inst.switchTransfers();
 
         tx = await (
-            await ExilonNftLootboxInst.connect(user).buyId(0, 5, {
-                value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 5),
+            await ExilonNftLootboxInst.connect(user).buyId(0, 8, {
+                value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 8),
             })
         ).wait();
         for (let i = 0; i < tx.events.length; ++i) {
@@ -231,8 +248,8 @@ describe("Exilon Nft Lootbox test", function () {
         await Erc1155Inst.switchTransfers();
 
         tx = await (
-            await ExilonNftLootboxInst.connect(user).buyId(0, 5, {
-                value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 5),
+            await ExilonNftLootboxInst.connect(user).buyId(0, 8, {
+                value: await ExilonNftLootboxInst.getBnbPriceToOpen(0, 8),
             })
         ).wait();
         for (let i = 0; i < tx.events.length; ++i) {

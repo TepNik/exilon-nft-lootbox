@@ -190,7 +190,7 @@ library ExilonNftLootboxLibrary {
         }
     }
 
-    function getRandomNumber(uint256 nonce, uint256 upperLimit) external view returns (uint256) {
+    function getRandomNumber(uint256 nonce, uint256 upperLimit) public view returns (uint256) {
         return
             uint256(
                 keccak256(
@@ -249,7 +249,7 @@ library ExilonNftLootboxLibrary {
                 }
                 currentToken.amount = currentToken.amount * winningPlaces[i].placeAmounts;
 
-                uint256 index = findTokenInTokenInfoArray(
+                uint256 index = _findTokenInTokenInfoArray(
                     allTokensInfo,
                     lastIndex,
                     currentToken.tokenAddress,
@@ -279,12 +279,12 @@ library ExilonNftLootboxLibrary {
         }
     }
 
-    function findTokenInTokenInfoArray(
+    function _findTokenInTokenInfoArray(
         ExilonNftLootboxLibrary.TokenInfo[] memory tokensInfo,
         uint256 len,
         address token,
         uint256 id
-    ) public pure returns (uint256) {
+    ) private pure returns (uint256) {
         for (uint256 i = 0; i < len; ++i) {
             if (tokensInfo[i].tokenAddress == token && tokensInfo[i].id == id) {
                 return i;
@@ -369,6 +369,105 @@ library ExilonNftLootboxLibrary {
         } else {
             return (true, 0);
         }
+    }
+
+    function getWinningAmount(
+        uint256 totalShares,
+        uint256 prizeInfoAmount,
+        address tokenAddress,
+        address fundsHolder,
+        // 0 - winningPlaceAmounts, 1 - id, 2 - lastIndex, 3 - nonce, 4 - minRandomPercentage, 5 - maxRandomPercentage, 6 - powParameter
+        uint256[7] memory uint256Parameters
+    ) external view returns (uint256[3] memory winningAmountInfo) {
+        uint256 totalAmountOnFundsHolder = IERC20(tokenAddress).balanceOf(fundsHolder);
+
+        uint256 totalAmountOfSharesForWinnginPlace = prizeInfoAmount * uint256Parameters[0];
+        uint256 totalAmountOfFundsForWinningPlace = (totalAmountOnFundsHolder *
+            totalAmountOfSharesForWinnginPlace) / totalShares;
+
+        if (uint256Parameters[0] == 1) {
+            return [totalAmountOfFundsForWinningPlace, totalAmountOfSharesForWinnginPlace, prizeInfoAmount];
+        }
+
+        uint256 randomNumber = getRandomNumber(uint256Parameters[3], 1000);
+
+        (uint256 minWinningAmount, uint256 maxWinningAmount) = _getMinAndMaxAmount(
+            totalAmountOfFundsForWinningPlace,
+            uint256Parameters[0],
+            uint256Parameters[4],
+            uint256Parameters[5]
+        );
+        uint256 winningAmount = minWinningAmount +
+            (((maxWinningAmount - minWinningAmount) * randomNumber**uint256Parameters[6]) /
+                1000**uint256Parameters[6]);
+
+        (uint256 minSharesAmount, uint256 maxSharesAmount) = _getMinAndMaxAmount(
+            totalAmountOfSharesForWinnginPlace,
+            uint256Parameters[0],
+            uint256Parameters[4],
+            uint256Parameters[5]
+        );
+        uint256 sharesAmount = minSharesAmount +
+            (((maxSharesAmount - minSharesAmount) * randomNumber**uint256Parameters[6]) /
+                1000**uint256Parameters[6]);
+
+        uint256 newPrizeInfoAmount = (totalAmountOfSharesForWinnginPlace - sharesAmount) / (uint256Parameters[0] - 1);
+
+        // 0 - raw amount, 1 - amount in shares
+        return [winningAmount, sharesAmount, newPrizeInfoAmount];
+    }
+
+    function getBnbAmount(IPancakeRouter02 pancakeRouter, address weth, address usdToken, uint256 amount) external view returns (uint256) {
+        address[] memory path = new address[](2);
+        path[0] = weth;
+        path[1] = usdToken;
+        return (pancakeRouter.getAmountsIn(amount, path))[0];
+    }
+
+    function _getMinAndMaxAmount(
+        uint256 total,
+        uint256 winningPlaceAmounts,
+        uint256 minRandomPercentage,
+        uint256 maxRandomPercentage
+    ) private pure returns (uint256 min, uint256 max) {
+        min = (total * minRandomPercentage) / (winningPlaceAmounts * 10_000);
+        max = (total * maxRandomPercentage) / (winningPlaceAmounts * 10_000);
+
+        uint256 minimalReservationsForOtherUsers = (total * 5_000 * (winningPlaceAmounts - 1)) /
+            (winningPlaceAmounts * 10_000);
+
+        if (max > total - minimalReservationsForOtherUsers) {
+            max = total - minimalReservationsForOtherUsers;
+        }
+    }
+
+    function addTokenInfoToAllTokensArray(
+        TokenInfo memory prizeInfo,
+        uint256 balanceBefore,
+        // 0 - winningPlaceAmounts, 1 - id, 2 - lastIndex, 3 - nonce, 4 - minRandomPercentage, 5 - maxRandomPercentage, 6 - powParameter
+        uint256[7] memory uint256Parameters,
+        TokenInfo[] memory successWithdrawTokens
+    ) external view returns (TokenInfo[] memory, uint256[7] memory) {
+        if (prizeInfo.tokenType == TokenType.ERC20) {
+            uint256 balanceAfter = IERC20(prizeInfo.tokenAddress).balanceOf(msg.sender);
+            prizeInfo.amount = balanceAfter - balanceBefore;
+        }
+
+        uint256 index = _findTokenInTokenInfoArray(
+            successWithdrawTokens,
+            uint256Parameters[2],
+            prizeInfo.tokenAddress,
+            prizeInfo.id
+        );
+        if (index != type(uint256).max) {
+            successWithdrawTokens[index].amount += prizeInfo.amount;
+        } else {
+            successWithdrawTokens[uint256Parameters[2]] = prizeInfo;
+
+            ++uint256Parameters[2];
+        }
+
+        return (successWithdrawTokens, uint256Parameters);
     }
 
     function _getRevertMsg(bytes memory revertData)
