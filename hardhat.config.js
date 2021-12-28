@@ -29,7 +29,7 @@ require("hardhat-tracer");
 
 require("@nomiclabs/hardhat-web3");
 
-let config = require("./config.js");
+let config = require("./config.json");
 
 module.exports = {
     networks: {
@@ -110,7 +110,7 @@ module.exports = {
     },
     contractSizer: {
         alphaSort: true,
-        runOnCompile: true,
+        runOnCompile: false,
         disambiguatePaths: false,
     },
     gasReporter: {

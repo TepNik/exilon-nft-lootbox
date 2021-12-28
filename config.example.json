@@ -1,0 +1,16 @@
+{
+    "testnetAccounts": ["0000000000000000000000000000000000000000000000000000000000000000"],
+    "mainnetAccounts": ["0000000000000000000000000000000000000000000000000000000000000000"],
+    "infuraIdProject": "abcd1234...",
+    "apiKey": "abcd1234...",
+    "coinmarketcapApi": "abcd1234...",
+
+    "exilonAddressMainnet": "0x5648d13ad81c569fe36d2a4a73996bcb34f661dd",
+    "exilonAddressTestnet": "0x99964c0fb8098f513e4ed88629ec53b674d69c41",
+
+    "usdAddressMainnet": "0xe9e7cea3dedca5984780bafc599bd69add087d56",
+    "usdAddressTestnet": "0x916082868d33a860C297F4c54Ac18771186ed73c",
+
+    "dexRouterMainnet": "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+    "dexRouterTestnet": "0xCc7aDc94F3D80127849D2b41b6439b7CF1eB4Ae0"
+}

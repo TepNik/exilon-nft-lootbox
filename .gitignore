@@ -1,7 +1,7 @@
 node_modules
 cache
 artifacts
-config.js
+config.json
 coverage
 coverage.json
 flattened

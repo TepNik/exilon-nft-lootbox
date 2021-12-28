@@ -1,10 +1,28 @@
 const hre = require("hardhat");
 
 const config = require("../config.js");
-const utils = require("./utils");
 
 async function main() {
+    if (hre.network.name != "bscTestnet" && hre.network.name != "bscMainnet") {
+        console.log("Wrong network");
+        return;
+    }
+
     const [deployer] = await ethers.getSigners();
+
+    let exilonAddress;
+    let usdAddress;
+    let dexRouterAddress;
+    let feeReceiverAddress = deployer.address;
+    if (hre.network.name != "bscTestnet") {
+        exilonAddress = config.exilonAddressTestnet;
+        usdAddress = config.usdAddressTestnet;
+        dexRouterAddress = config.dexRouterTestnet;
+    } else {
+        exilonAddress = config.exilonAddressMainnet;
+        usdAddress = config.usdAddressMainnet;
+        dexRouterAddress = config.dexRouterMainnet;
+    }
 
     const ExilonNftLootboxLibraryFactory = await hre.ethers.getContractFactory(
         "ExilonNftLootboxLibrary"
@@ -20,21 +38,12 @@ async function main() {
             ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
         },
     });
-    const ExilonNftLootboxInst = await ExilonNftLootboxFactory.deploy(
-        "0x99964c0fb8098f513e4ed88629ec53b674d69c41", // EXILON Testnet
-        "0x916082868d33a860C297F4c54Ac18771186ed73c", // USD Testnet
-        "0xCc7aDc94F3D80127849D2b41b6439b7CF1eB4Ae0", // DEX Router Testnet
-        "0xA2537026E1f1Db218C4a4dC3d87A378e730CF19b" // Fee receiver
-    );
+    let arguments = [exilonAddress, usdAddress, dexRouterAddress, feeReceiverAddress];
+    const ExilonNftLootboxInst = await ExilonNftLootboxFactory.deploy(...arguments);
     await ExilonNftLootboxInst.deployed();
     await hre.run("verify:verify", {
         address: ExilonNftLootboxInst.address,
-        constructorArguments: [
-            "0x99964c0fb8098f513e4ed88629ec53b674d69c41", // EXILON Testnet
-            "0x916082868d33a860C297F4c54Ac18771186ed73c", // USD Testnet
-            "0xCc7aDc94F3D80127849D2b41b6439b7CF1eB4Ae0", // DEX Router Testnet
-            "0xA2537026E1f1Db218C4a4dC3d87A378e730CF19b", // Fee receiver
-        ],
+        constructorArguments: arguments,
     });
 
     /* await hre.run("verify:verify", {
@@ -43,6 +52,35 @@ async function main() {
             ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
         }
     }); */
+
+    const ERC721MainFactory = await hre.ethers.getContractFactory("ERC721Main");
+    arguments = [usdAddress, dexRouterAddress, feeReceiverAddress];
+    const ERC721MainInst = await ERC721MainFactory.deploy(...arguments);
+    await ERC721MainInst.deployed();
+    await hre.run("verify:verify", {
+        address: ERC721MainInst.address,
+        constructorArguments: arguments,
+    });
+
+    const ERC1155MainFactory = await hre.ethers.getContractFactory("ERC1155Main");
+    const ERC1155MainInst = await ERC1155MainFactory.deploy(...arguments);
+    await ERC1155MainInst.deployed();
+    await hre.run("verify:verify", {
+        address: ERC1155MainInst.address,
+        constructorArguments: arguments,
+    });
+
+    const NftMarketplaceFactory = await hre.ethers.getContractFactory("NftMarketplace", {
+        libraries: {
+            ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
+        },
+    });
+    const NftMarketplaceInst = await NftMarketplaceFactory.deploy(...arguments);
+    await NftMarketplaceInst.deployed();
+    await hre.run("verify:verify", {
+        address: NftMarketplaceInst.address,
+        constructorArguments: arguments,
+    });
 }
 
 main()
