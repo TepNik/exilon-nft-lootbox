@@ -72,10 +72,6 @@ library ExilonNftLootboxLibrary {
                     IERC20(tokenInfo.tokenAddress).safeTransfer(to, tokenInfo.amount);
                     return true;
                 } else {
-                    require(
-                        gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
-                        "ExilonNftLootboxLibrary: Not enough gas"
-                    );
                     (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                         gas: MAX_GAS_FOR_TOKEN_TRANSFER
                     }(abi.encodeWithSelector(IERC20.transfer.selector, to, tokenInfo.amount));
@@ -95,10 +91,6 @@ library ExilonNftLootboxLibrary {
                     IERC20(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.amount);
                     return true;
                 } else {
-                    require(
-                        gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
-                        "ExilonNftLootboxLibrary: Not enough gas"
-                    );
                     (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                         gas: MAX_GAS_FOR_TOKEN_TRANSFER
                     }(
@@ -126,10 +118,6 @@ library ExilonNftLootboxLibrary {
                 IERC721(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.id);
                 return true;
             } else {
-                require(
-                    gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
-                    "ExilonNftLootboxLibrary: Not enough gas"
-                );
                 (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                     gas: MAX_GAS_FOR_TOKEN_TRANSFER
                 }(
@@ -162,10 +150,6 @@ library ExilonNftLootboxLibrary {
                 );
                 return true;
             } else {
-                require(
-                    gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
-                    "ExilonNftLootboxLibrary: Not enough gas"
-                );
                 (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                     gas: MAX_GAS_FOR_TOKEN_TRANSFER
                 }(
@@ -382,16 +366,8 @@ library ExilonNftLootboxLibrary {
         if (amount > 0) {
             bool success;
             if (address(token) == address(0)) {
-                require(
-                    gasleft() >= MAX_GAS_FOR_ETH_TRANSFER,
-                    "ExilonNftLootboxLibrary: Not enough gas"
-                );
                 (success, ) = msg.sender.call{gas: MAX_GAS_FOR_ETH_TRANSFER, value: amount}("");
             } else {
-                require(
-                    gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
-                    "ExilonNftLootboxLibrary: Not enough gas"
-                );
                 (success, ) = address(token).call{gas: MAX_GAS_FOR_TOKEN_TRANSFER}(
                     abi.encodeWithSelector(IERC20.transfer.selector, msg.sender, amount)
                 );

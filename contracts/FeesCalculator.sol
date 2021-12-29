@@ -77,10 +77,6 @@ contract FeesCalculator is AccessControl {
     function _processFeeTransferOnFeeReceiver() internal {
         address _feeReceiver = feeReceiver;
         uint256 amount = address(this).balance;
-        require(
-            gasleft() >= ExilonNftLootboxLibrary.MAX_GAS_FOR_ETH_TRANSFER,
-            "ExilonNftLootboxLibrary: Not enough gas"
-        );
         (bool success, ) = _feeReceiver.call{
             value: amount,
             gas: ExilonNftLootboxLibrary.MAX_GAS_FOR_ETH_TRANSFER
