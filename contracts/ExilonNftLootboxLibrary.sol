@@ -34,7 +34,7 @@ library ExilonNftLootboxLibrary {
     }
 
     uint256 public constant MAX_TOKENS_IN_LOOTBOX = 200;
-    uint256 public constant MAX_GAS_FOR_TOKEN_TRANSFER = 1_500_000;
+    uint256 public constant MAX_GAS_FOR_TOKEN_TRANSFER = 3_000_000;
     uint256 public constant MAX_GAS_FOR_ETH_TRANSFER = 500_000;
 
     event BadERC20TokenWithdraw(
