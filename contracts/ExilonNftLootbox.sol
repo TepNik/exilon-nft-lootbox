@@ -60,8 +60,11 @@ contract ExilonNftLootbox is ReentrancyGuard, ERC1155, ERC1155Holder, FeesCalcul
     event LootboxMaded(address indexed maker, uint256 id, uint256 amount);
     event WithdrawLootbox(address indexed maker, uint256 id, uint256 amount);
     event IdDeleted(uint256 id, address indexed fundsHolder);
-    event SuccessfullyWithdrawnTokens(ExilonNftLootboxLibrary.TokenInfo[] tokens);
-    event TransferFeeToCreator(uint256 bnbAmount);
+    event SuccessfullyWithdrawnTokens(
+        address indexed user,
+        ExilonNftLootboxLibrary.TokenInfo[] tokens
+    );
+    event TransferFeeToCreator(address indexed creator, uint256 bnbAmount);
 
     event PriceChanges(
         uint256 newCreatingPrice,
@@ -363,7 +366,7 @@ contract ExilonNftLootbox is ReentrancyGuard, ERC1155, ERC1155Holder, FeesCalcul
         }
 
         emit WithdrawLootbox(msg.sender, idAndAmount[0], idAndAmount[1]);
-        emit SuccessfullyWithdrawnTokens(successWithdrawTokens);
+        emit SuccessfullyWithdrawnTokens(msg.sender, successWithdrawTokens);
     }
 
     function _deleteId(uint256 id, address fundsHolder) private {
@@ -384,10 +387,11 @@ contract ExilonNftLootbox is ReentrancyGuard, ERC1155, ERC1155Holder, FeesCalcul
         uint256 amountToCreator = (bnbAmount * creatorPercentage) / 10_000;
 
         // creator is not a contract and shouldn't fail
-        (bool success, ) = idsToCreator[id].call{value: amountToCreator}("");
+        address creator = idsToCreator[id];
+        (bool success, ) = creator.call{value: amountToCreator}("");
         require(success, "ExilonNftLootbox: Transfer to creator");
 
-        emit TransferFeeToCreator(amountToCreator);
+        emit TransferFeeToCreator(creator, amountToCreator);
 
         _processFeeTransferOnFeeReceiver();
     }
