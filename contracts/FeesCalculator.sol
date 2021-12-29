@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
+import "./ExilonNftLootboxLibrary.sol";
+
 contract FeesCalculator is AccessControl {
     // public
 
@@ -75,7 +77,14 @@ contract FeesCalculator is AccessControl {
     function _processFeeTransferOnFeeReceiver() internal {
         address _feeReceiver = feeReceiver;
         uint256 amount = address(this).balance;
-        (bool success, ) = _feeReceiver.call{value: amount, gas: 2_000_000}("");
+        require(
+            gasleft() >= ExilonNftLootboxLibrary.MAX_GAS_FOR_ETH_TRANSFER,
+            "ExilonNftLootboxLibrary: Not enough gas"
+        );
+        (bool success, ) = _feeReceiver.call{
+            value: amount,
+            gas: ExilonNftLootboxLibrary.MAX_GAS_FOR_ETH_TRANSFER
+        }("");
         if (!success) {
             emit BadCommissionTransfer(_feeReceiver, amount);
         } else {

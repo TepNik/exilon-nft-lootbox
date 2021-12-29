@@ -34,7 +34,8 @@ library ExilonNftLootboxLibrary {
     }
 
     uint256 public constant MAX_TOKENS_IN_LOOTBOX = 200;
-    uint256 public constant MAX_GAS_FOR_TRANSFER = 5_000_000;
+    uint256 public constant MAX_GAS_FOR_TOKEN_TRANSFER = 1_500_000;
+    uint256 public constant MAX_GAS_FOR_ETH_TRANSFER = 500_000;
 
     event BadERC20TokenWithdraw(
         address indexed token,
@@ -71,8 +72,12 @@ library ExilonNftLootboxLibrary {
                     IERC20(tokenInfo.tokenAddress).safeTransfer(to, tokenInfo.amount);
                     return true;
                 } else {
+                    require(
+                        gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
+                        "ExilonNftLootboxLibrary: Not enough gas"
+                    );
                     (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
-                        gas: MAX_GAS_FOR_TRANSFER
+                        gas: MAX_GAS_FOR_TOKEN_TRANSFER
                     }(abi.encodeWithSelector(IERC20.transfer.selector, to, tokenInfo.amount));
                     if (!success) {
                         emit BadERC20TokenWithdraw(
@@ -90,8 +95,12 @@ library ExilonNftLootboxLibrary {
                     IERC20(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.amount);
                     return true;
                 } else {
+                    require(
+                        gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
+                        "ExilonNftLootboxLibrary: Not enough gas"
+                    );
                     (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
-                        gas: MAX_GAS_FOR_TRANSFER
+                        gas: MAX_GAS_FOR_TOKEN_TRANSFER
                     }(
                         abi.encodeWithSelector(
                             IERC20.transferFrom.selector,
@@ -117,8 +126,12 @@ library ExilonNftLootboxLibrary {
                 IERC721(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.id);
                 return true;
             } else {
+                require(
+                    gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
+                    "ExilonNftLootboxLibrary: Not enough gas"
+                );
                 (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
-                    gas: MAX_GAS_FOR_TRANSFER
+                    gas: MAX_GAS_FOR_TOKEN_TRANSFER
                 }(
                     abi.encodeWithSignature(
                         "safeTransferFrom(address,address,uint256)",
@@ -149,8 +162,12 @@ library ExilonNftLootboxLibrary {
                 );
                 return true;
             } else {
+                require(
+                    gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
+                    "ExilonNftLootboxLibrary: Not enough gas"
+                );
                 (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
-                    gas: MAX_GAS_FOR_TRANSFER
+                    gas: MAX_GAS_FOR_TOKEN_TRANSFER
                 }(
                     abi.encodeWithSelector(
                         IERC1155.safeTransferFrom.selector,
@@ -365,9 +382,17 @@ library ExilonNftLootboxLibrary {
         if (amount > 0) {
             bool success;
             if (address(token) == address(0)) {
-                (success, ) = msg.sender.call{gas: 1_000_000, value: amount}("");
+                require(
+                    gasleft() >= MAX_GAS_FOR_ETH_TRANSFER,
+                    "ExilonNftLootboxLibrary: Not enough gas"
+                );
+                (success, ) = msg.sender.call{gas: MAX_GAS_FOR_ETH_TRANSFER, value: amount}("");
             } else {
-                (success, ) = address(token).call{gas: 1_000_000}(
+                require(
+                    gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
+                    "ExilonNftLootboxLibrary: Not enough gas"
+                );
+                (success, ) = address(token).call{gas: MAX_GAS_FOR_TOKEN_TRANSFER}(
                     abi.encodeWithSelector(IERC20.transfer.selector, msg.sender, amount)
                 );
             }
