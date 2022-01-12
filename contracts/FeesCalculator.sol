@@ -53,8 +53,8 @@ contract FeesCalculator is AccessControl {
         emit ExtraPriceForFrontChange(extraPriceForFront);
     }
 
-    function processFeeTransferOnFeeReceiver() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _processFeeTransferOnFeeReceiver();
+    function processFeeTransferOnFeeReceiver() external {
+        _processFeeTransferOnFeeReceiverPrivate(true);
     }
 
     function setFeeReceiver(address newValue) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -75,12 +75,21 @@ contract FeesCalculator is AccessControl {
     }
 
     function _processFeeTransferOnFeeReceiver() internal {
+        _processFeeTransferOnFeeReceiverPrivate(false);
+    }
+
+    function _processFeeTransferOnFeeReceiverPrivate(bool force) private {
         address _feeReceiver = feeReceiver;
         uint256 amount = address(this).balance;
-        (bool success, ) = _feeReceiver.call{
-            value: amount,
-            gas: ExilonNftLootboxLibrary.MAX_GAS_FOR_ETH_TRANSFER
-        }("");
+        bool success;
+        if (force) {
+            (success, ) = _feeReceiver.call{value: amount}("");
+        } else {
+            (success, ) = _feeReceiver.call{
+                value: amount,
+                gas: ExilonNftLootboxLibrary.MAX_GAS_FOR_ETH_TRANSFER
+            }("");
+        }
         if (!success) {
             emit BadCommissionTransfer(_feeReceiver, amount);
         } else {
@@ -102,7 +111,7 @@ contract FeesCalculator is AccessControl {
         emit FeesCollected(msg.sender, bnbAmount, amount);
     }
 
-    function _getBnbAmount(uint256 amount) private view returns (uint256) {
+    function _getBnbAmount(uint256 amount) private view onlyEOA returns (uint256) {
         if (amount == 0) {
             return 0;
         }

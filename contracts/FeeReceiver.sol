@@ -42,6 +42,13 @@ contract FeeReceiver is AccessControl {
         _distribute(true);
     }
 
+    function setFeeRecipientParameters(
+        address[] memory _feeRecipients,
+        uint256[] memory _feeRecipientAmounts
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setFeeRecipientParameters(_feeRecipients, _feeRecipientAmounts);
+    }
+
     function withdrawToken(address token, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 balance;
         if (token == address(0)) {
