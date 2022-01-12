@@ -78,6 +78,13 @@ describe("Exilon Nft Lootbox test", function () {
             FeeReceiverInst.address
         );
 
+        const FundsHolderFactoryFactory = await hre.ethers.getContractFactory("FundsHolderFactory", {
+            libraries: {
+                ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
+            },
+        });
+        FundsHolderFactoryInst = await FundsHolderFactoryFactory.deploy();
+
         const ExilonNftLootboxMasterFactory = await hre.ethers.getContractFactory("ExilonNftLootboxMaster", {
             libraries: {
                 ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
@@ -88,7 +95,8 @@ describe("Exilon Nft Lootbox test", function () {
             UsdInst.address,
             PancakeRouterInst.address,
             FeeReceiverInst.address,
-            ExilonNftLootboxMainInst.address
+            ExilonNftLootboxMainInst.address,
+            FundsHolderFactoryInst.address
         );
 
         let amountOfExilonToPair = OneExilon.mul(1000);

@@ -11,9 +11,10 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
 import "./ExilonNftLootboxLibrary.sol";
-import "./FundsHolder.sol";
 import "./FeesCalculator.sol";
 import "./interfaces/IExilonNftLootboxMain.sol";
+import "./interfaces/IFundsHolderFactory.sol";
+import "./interfaces/IFundsHolder.sol";
 
 contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
     using SafeERC20 for IERC20;
@@ -21,6 +22,7 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
     // public
 
     IExilonNftLootboxMain public immutable exilonNftLootboxMain;
+    IFundsHolderFactory public immutable fundsHolderFactory;
 
     // mapping that connects ids with the contract that holds the funds of this id
     mapping(uint256 => address) public idsToFundsHolders;
@@ -45,7 +47,6 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
 
     // addresses info
     IERC20 public immutable exilon;
-    address public immutable masterContract;
 
     // private
 
@@ -83,7 +84,8 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         address _usdToken,
         IPancakeRouter02 _pancakeRouter,
         address _feeReceiver,
-        IExilonNftLootboxMain _exilonNftLootboxMain
+        IExilonNftLootboxMain _exilonNftLootboxMain,
+        IFundsHolderFactory _fundsHolderFactory
     ) FeesCalculator(_usdToken, _pancakeRouter, _feeReceiver) {
         exilon = _exilon;
         uint256 oneExilon = 10**IERC20Metadata(address(_exilon)).decimals();
@@ -94,11 +96,10 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         creatingPrice = oneDollar;
 
         exilonNftLootboxMain = _exilonNftLootboxMain;
-        _exilonNftLootboxMain.initMaster();
+        _exilonNftLootboxMain.init();
 
-        FundsHolder _masterContract = new FundsHolder();
-        _masterContract.init();
-        masterContract = address(_masterContract);
+        fundsHolderFactory = _fundsHolderFactory;
+        _fundsHolderFactory.init();
 
         emit ChangeAmountOfExilonToOpenner(oneExilon);
         emit PriceChanges(oneDollar, oneDollar, creatorPercentage);
@@ -142,13 +143,13 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
 
         idsToCreator[lastId] = msg.sender;
 
-        FundsHolder fundsHolder = FundsHolder(Clones.clone(masterContract));
-        fundsHolder.init();
-        idsToFundsHolders[lastId] = address(fundsHolder);
+        address fundsHolder = fundsHolderFactory.deployNewContract();
+
+        idsToFundsHolders[lastId] = fundsHolder;
 
         ExilonNftLootboxLibrary.transferFundsToFundsHolder(
             allTokensInfo,
-            address(fundsHolder),
+            fundsHolder,
             lastId,
             address(exilon),
             _totalSharesOfERC20
@@ -343,7 +344,7 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
     }
 
     function _deleteId(uint256 id, address fundsHolder) private {
-        FundsHolder(fundsHolder).selfDestruct();
+        IFundsHolder(fundsHolder).selfDestruct();
         delete idsToFundsHolders[id];
         delete idsToCreator[id];
         delete prizes[id];
@@ -426,7 +427,7 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
                 newPrizeInfoAmount = prizeInfo[i].amount;
             }
 
-            if (FundsHolder(fundsHolder).withdrawToken(prizeInfo[i], msg.sender)) {
+            if (IFundsHolder(fundsHolder).withdrawToken(prizeInfo[i], msg.sender)) {
                 (successWithdrawTokens, uint256Parameters) = ExilonNftLootboxLibrary
                     .addTokenInfoToAllTokensArray(
                         prizeInfo[i],

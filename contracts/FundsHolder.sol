@@ -7,28 +7,31 @@ import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
 import "./ExilonNftLootboxLibrary.sol";
 
-contract FundsHolder is ERC1155Holder, ERC721Holder {
+import "./interfaces/IFundsHolder.sol";
+
+contract FundsHolder is ERC1155Holder, ERC721Holder, IFundsHolder {
     bool isInited;
 
-    address public factory;
+    address public master;
 
-    modifier onlyFactory() {
-        require(msg.sender == factory, "FundsHolder: Not allowed");
+    modifier onlyMaster() {
+        require(msg.sender == master, "FundsHolder: Not allowed");
         _;
     }
 
     constructor() {}
 
-    function init() external {
+    function init(address _master) external override {
         require(!isInited, "FundsHolder: Already initied");
         isInited = true;
 
-        factory = msg.sender;
+        master = _master;
     }
 
     function withdrawTokens(ExilonNftLootboxLibrary.TokenInfo[] memory tokenInfo, address to)
         external
-        onlyFactory
+        override
+        onlyMaster
     {
         for (uint256 i = 0; i < tokenInfo.length; ++i) {
             ExilonNftLootboxLibrary.withdrawToken(tokenInfo[i], address(this), to, false);
@@ -37,13 +40,14 @@ contract FundsHolder is ERC1155Holder, ERC721Holder {
 
     function withdrawToken(ExilonNftLootboxLibrary.TokenInfo memory tokenInfo, address to)
         external
-        onlyFactory
+        override
+        onlyMaster
         returns (bool)
     {
         return ExilonNftLootboxLibrary.withdrawToken(tokenInfo, address(this), to, false);
     }
 
-    function selfDestruct() external onlyFactory {
+    function selfDestruct() external override onlyMaster {
         selfdestruct(payable(msg.sender));
     }
 }

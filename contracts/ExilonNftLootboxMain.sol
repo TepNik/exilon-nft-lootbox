@@ -34,7 +34,7 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         address _feeReceiver
     ) ERC1155("") FeesCalculator(_usdToken, _pancakeRouter, _feeReceiver) {}
 
-    function initMaster() external override {
+    function init() external override {
         masterContract = msg.sender;
     }
 
