@@ -3,7 +3,6 @@
 pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
@@ -11,7 +10,7 @@ import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
 import "./FeesCalculator.sol";
 
-contract ERC1155Main is FeesCalculator, ERC1155, ReentrancyGuard {
+contract ERC1155Main is FeesCalculator, ERC1155 {
     // public
 
     uint256 public creatingPrice;

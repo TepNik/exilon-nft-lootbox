@@ -39,17 +39,27 @@ async function main() {
         address: ExilonNftLootboxLibraryInst.address,
     });
 
-    const ExilonNftLootboxFactory = await hre.ethers.getContractFactory("ExilonNftLootbox", {
+    const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory(
+        "ExilonNftLootboxMain"
+    );
+    console.log("Deploying ExilonNftLootboxMain...");
+    const ExilonNftLootboxMainInst = await ExilonNftLootboxMainFactory.deploy();
+    await ExilonNftLootboxMainInst.deployed();
+    await hre.run("verify:verify", {
+        address: ExilonNftLootboxMainInst.address,
+    });
+
+    const ExilonNftLootboxMasterFactory = await hre.ethers.getContractFactory("ExilonNftLootboxMaster", {
         libraries: {
             ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
         },
     });
     let arguments = [exilonAddress, usdAddress, dexRouterAddress, FeeReceiverInst.address];
-    console.log("Deploying ExilonNftLootbox...");
-    const ExilonNftLootboxInst = await ExilonNftLootboxFactory.deploy(...arguments);
-    await ExilonNftLootboxInst.deployed();
+    console.log("Deploying ExilonNftLootboxMaster...");
+    const ExilonNftLootboxMasterInst = await ExilonNftLootboxMasterFactory.deploy(...arguments);
+    await ExilonNftLootboxMasterInst.deployed();
     await hre.run("verify:verify", {
-        address: ExilonNftLootboxInst.address,
+        address: ExilonNftLootboxMasterInst.address,
         constructorArguments: arguments,
     });
 

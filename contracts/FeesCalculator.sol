@@ -3,12 +3,13 @@
 pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
 import "./ExilonNftLootboxLibrary.sol";
 
-contract FeesCalculator is AccessControl {
+contract FeesCalculator is AccessControl, ReentrancyGuard {
     // public
 
     address public feeReceiver;
@@ -53,7 +54,7 @@ contract FeesCalculator is AccessControl {
         emit ExtraPriceForFrontChange(extraPriceForFront);
     }
 
-    function processFeeTransferOnFeeReceiver() external {
+    function processFeeTransferOnFeeReceiver() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _processFeeTransferOnFeeReceiverPrivate(true);
     }
 

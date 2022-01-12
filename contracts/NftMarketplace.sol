@@ -2,7 +2,6 @@
 
 pragma solidity 0.8.11;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
@@ -11,7 +10,7 @@ import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 import "./ExilonNftLootboxLibrary.sol";
 import "./FeesCalculator.sol";
 
-contract NftMarketplace is FeesCalculator, ReentrancyGuard {
+contract NftMarketplace is FeesCalculator {
     using EnumerableSet for EnumerableSet.UintSet;
 
     struct SellingInfo {
