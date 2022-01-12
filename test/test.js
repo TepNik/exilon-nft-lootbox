@@ -71,25 +71,33 @@ describe("Exilon Nft Lootbox test", function () {
         const ERC1155TestFactorty = await hre.ethers.getContractFactory("ERC1155Test");
         Erc1155Inst = await ERC1155TestFactorty.deploy();
 
-        const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory("ExilonNftLootboxMain");
+        const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory(
+            "ExilonNftLootboxMain"
+        );
         ExilonNftLootboxMainInst = await ExilonNftLootboxMainFactory.deploy(
             UsdInst.address,
             PancakeRouterInst.address,
             FeeReceiverInst.address
         );
 
-        const FundsHolderFactoryFactory = await hre.ethers.getContractFactory("FundsHolderFactory", {
-            libraries: {
-                ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
-            },
-        });
+        const FundsHolderFactoryFactory = await hre.ethers.getContractFactory(
+            "FundsHolderFactory",
+            {
+                libraries: {
+                    ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
+                },
+            }
+        );
         FundsHolderFactoryInst = await FundsHolderFactoryFactory.deploy();
 
-        const ExilonNftLootboxMasterFactory = await hre.ethers.getContractFactory("ExilonNftLootboxMaster", {
-            libraries: {
-                ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
-            },
-        });
+        const ExilonNftLootboxMasterFactory = await hre.ethers.getContractFactory(
+            "ExilonNftLootboxMaster",
+            {
+                libraries: {
+                    ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
+                },
+            }
+        );
         ExilonNftLootboxMasterInst = await ExilonNftLootboxMasterFactory.deploy(
             ExilonInst.address,
             UsdInst.address,
@@ -211,7 +219,11 @@ describe("Exilon Nft Lootbox test", function () {
         expect(
             await ExilonNftLootboxMainInst.getUsersIdsLength(ExilonNftLootboxMasterInst.address)
         ).to.be.equals(1);
-        let ids = await ExilonNftLootboxMainInst.getUsersIds(ExilonNftLootboxMasterInst.address, 0, 1);
+        let ids = await ExilonNftLootboxMainInst.getUsersIds(
+            ExilonNftLootboxMasterInst.address,
+            0,
+            1
+        );
         expect(ids.length).to.be.equals(1);
         expect(ids[0]).to.be.equals(0);
 

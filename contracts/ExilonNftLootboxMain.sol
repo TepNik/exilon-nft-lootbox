@@ -23,7 +23,7 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
     mapping(address => EnumerableSet.UintSet) private _idsUsersHold;
     mapping(uint256 => string) private _idsToUri;
 
-    modifier onlyMaster {
+    modifier onlyMaster() {
         require(msg.sender == masterContract, "ExilonNftLootboxMain: Not master");
         _;
     }
@@ -117,7 +117,6 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         returns (bool)
     {
         return
-            AccessControl.supportsInterface(interfaceId) ||
-            ERC1155.supportsInterface(interfaceId);
+            AccessControl.supportsInterface(interfaceId) || ERC1155.supportsInterface(interfaceId);
     }
 }

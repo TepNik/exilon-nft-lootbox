@@ -13,7 +13,7 @@ contract FundsHolderFactory is IFundsHolderFactory {
     address public masterContract;
     address public immutable fundsHolderMaster;
 
-    modifier onlyMaster {
+    modifier onlyMaster() {
         require(msg.sender == masterContract, "FundsHolderFactory: Not master");
         _;
     }
@@ -28,7 +28,7 @@ contract FundsHolderFactory is IFundsHolderFactory {
         masterContract = msg.sender;
     }
 
-    function deployNewContract() external override onlyMaster returns(address) {
+    function deployNewContract() external override onlyMaster returns (address) {
         FundsHolder fundsHolder = FundsHolder(Clones.clone(fundsHolderMaster));
         fundsHolder.init(msg.sender);
         return address(fundsHolder);

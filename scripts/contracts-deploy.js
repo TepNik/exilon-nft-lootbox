@@ -39,9 +39,7 @@ async function main() {
         address: ExilonNftLootboxLibraryInst.address,
     });
 
-    const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory(
-        "ExilonNftLootboxMain"
-    );
+    const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory("ExilonNftLootboxMain");
     console.log("Deploying ExilonNftLootboxMain...");
     const ExilonNftLootboxMainInst = await ExilonNftLootboxMainFactory.deploy();
     await ExilonNftLootboxMainInst.deployed();
@@ -49,11 +47,14 @@ async function main() {
         address: ExilonNftLootboxMainInst.address,
     });
 
-    const ExilonNftLootboxMasterFactory = await hre.ethers.getContractFactory("ExilonNftLootboxMaster", {
-        libraries: {
-            ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
-        },
-    });
+    const ExilonNftLootboxMasterFactory = await hre.ethers.getContractFactory(
+        "ExilonNftLootboxMaster",
+        {
+            libraries: {
+                ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
+            },
+        }
+    );
     let arguments = [exilonAddress, usdAddress, dexRouterAddress, FeeReceiverInst.address];
     console.log("Deploying ExilonNftLootboxMaster...");
     const ExilonNftLootboxMasterInst = await ExilonNftLootboxMasterFactory.deploy(...arguments);
