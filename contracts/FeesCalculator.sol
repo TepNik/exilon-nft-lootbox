@@ -4,6 +4,7 @@ pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
@@ -11,6 +12,8 @@ import "./ExilonNftLootboxLibrary.sol";
 
 contract FeesCalculator is AccessControl, ReentrancyGuard {
     // public
+
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     address public feeReceiver;
 
@@ -23,8 +26,17 @@ contract FeesCalculator is AccessControl, ReentrancyGuard {
 
     address private immutable _weth;
 
+    // internal
+
+    uint256 internal immutable _oneUsd;
+
     modifier onlyEOA() {
         require(msg.sender == tx.origin, "FeesCalculator: Only EOA");
+        _;
+    }
+
+    modifier onlyManagerOrAdmin() {
+        require(hasRole(MANAGER_ROLE, msg.sender) || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "ExilonNftLootbox: No access");
         _;
     }
 
@@ -42,8 +54,9 @@ contract FeesCalculator is AccessControl, ReentrancyGuard {
         address _feeReceiver
     ) {
         usdToken = _usdToken;
-        pancakeRouter = _pancakeRouter;
+        _oneUsd = 10**IERC20Metadata(_usdToken).decimals();
 
+        pancakeRouter = _pancakeRouter;
         _weth = _pancakeRouter.WETH();
 
         feeReceiver = _feeReceiver;

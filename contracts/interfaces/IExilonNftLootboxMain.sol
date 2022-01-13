@@ -4,6 +4,8 @@ pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
+import "../ExilonNftLootboxLibrary.sol";
+
 interface IExilonNftLootboxMain is IERC1155 {
     function init() external;
 
@@ -20,5 +22,5 @@ interface IExilonNftLootboxMain is IERC1155 {
         uint256 amount
     ) external;
 
-    function deleteId(uint256 id) external;
+    function lootboxType(uint256 id) external view returns(ExilonNftLootboxLibrary.LootBoxType);
 }

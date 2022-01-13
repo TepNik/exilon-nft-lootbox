@@ -18,10 +18,15 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
 
     address public masterContract;
 
+    mapping(uint256 => ExilonNftLootboxLibrary.LootBoxType) public override lootboxType;
+
     // private
 
     mapping(address => EnumerableSet.UintSet) private _idsUsersHold;
     mapping(uint256 => string) private _idsToUri;
+    mapping(uint256 => uint256) private _totalSupply;
+
+    mapping(ExilonNftLootboxLibrary.LootBoxType => EnumerableSet.UintSet) private _lootBoxTypeToIds;
 
     modifier onlyMaster() {
         require(msg.sender == masterContract, "ExilonNftLootboxMain: Not master");
@@ -35,7 +40,23 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
     ) ERC1155("") FeesCalculator(_usdToken, _pancakeRouter, _feeReceiver) {}
 
     function init() external override {
+        require(masterContract == address(0), "ExilonNftLootboxMain: Has already initialized");
         masterContract = msg.sender;
+    }
+
+    function setIdMega(uint256 id, ExilonNftLootboxLibrary.LootBoxType setType) external onlyManagerOrAdmin {
+        require(_totalSupply[id] > 0, "ExilonNftLootboxMain: Id doesn't exist");
+        require(lootboxType[id] == ExilonNftLootboxLibrary.LootBoxType.DEFAULT, "ExilonNftLootboxMain: Only default");
+        require(
+            setType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_RESERVE ||
+            setType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_NO_RESERVE,
+            "ExilonNftLootboxMain: Wrong set type"
+        );
+
+        _lootBoxTypeToIds[ExilonNftLootboxLibrary.LootBoxType.DEFAULT].remove(id);
+        _lootBoxTypeToIds[setType].add(id);
+
+        lootboxType[id] = setType;
     }
 
     function mint(
@@ -45,6 +66,13 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         string memory _uri
     ) external onlyMaster {
         _mint(to, id, amount, "");
+
+        uint256 __totalSupply = _totalSupply[id];
+        if (__totalSupply == 0) {
+            _lootBoxTypeToIds[ExilonNftLootboxLibrary.LootBoxType.DEFAULT].add(id);
+        }
+        __totalSupply += amount;
+        _totalSupply[id] = __totalSupply;
 
         _idsToUri[id] = _uri;
         emit URI(_uri, id);
@@ -56,11 +84,19 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         uint256 amount
     ) external override onlyMaster {
         _burn(from, id, amount);
-    }
 
-    function deleteId(uint256 id) external override onlyMaster {
-        delete _idsToUri[id];
-        emit URI("", id);
+        uint256 __totalSupply = _totalSupply[id];
+        __totalSupply -= amount;
+        _totalSupply[id] = __totalSupply;
+
+        if (__totalSupply == 0) {
+            delete _idsToUri[id];
+            emit URI("", id);
+
+            ExilonNftLootboxLibrary.LootBoxType _type = lootboxType[id];
+            delete lootboxType[id];
+            _lootBoxTypeToIds[_type].remove(id);
+        }
     }
 
     function getUsersIdsLength(address user) external view returns (uint256) {

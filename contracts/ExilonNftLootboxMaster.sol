@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
@@ -18,49 +19,58 @@ import "./interfaces/IFundsHolder.sol";
 
 contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.UintSet;
 
-    // public
-
+    // Contract ERC1155 for creating lootboxes
     IExilonNftLootboxMain public immutable exilonNftLootboxMain;
+    // Contract for creating funds holder contracts
     IFundsHolderFactory public immutable fundsHolderFactory;
 
-    // mapping that connects ids with the contract that holds the funds of this id
+    // Connects ids with the contract that holds the funds of this id
     mapping(uint256 => address) public idsToFundsHolders;
+    // Connects ids with the creator address
     mapping(uint256 => address) public idsToCreator;
+    // Connects creator address with the ids, that he maded
+    mapping(address => EnumerableSet.UintSet) private _creatorToIds;
+    // Last id
+    uint256 private _lastId;
 
-    // info abount prizes
-    mapping(uint256 => ExilonNftLootboxLibrary.WinningPlace[]) public prizes;
+    // Info abount prizes
+    mapping(uint256 => ExilonNftLootboxLibrary.WinningPlace[]) private prizes;
+    // Connects id with the amount of an unpacked lootboxes
     mapping(uint256 => uint256) public lootxesAmount;
 
-    // info about prices
+    // Amount in USD for creating lootbox
     uint256 public creatingPrice;
+    // Minimal amount in USD for openning price
     uint256 public minimumOpeningPrice;
+    // Connects id with it's openning price
     mapping(uint256 => uint256) public openingPrice;
+    // Percentage from openning price that the creators will get (100% - 10_000)
     uint256 public creatorPercentage = 5_000; // 50%
 
-    // random parameters
-    uint256 minRandomPercentage = 9_000; // 90%
-    uint256 maxRandomPercentage = 15_000; // 150%
-    uint256 powParameter = 5;
+    // Parameters for random
+    uint256 public minRandomPercentage = 9_000; // 90%
+    uint256 public maxRandomPercentage = 15_000; // 150%
+    uint256 public powParameter = 5;
+    uint256 private _nonce;
 
+    // Amount of exilon tokens that the openers of lootboxes will get
     uint256 public amountOfExilonToOpenner;
 
-    // addresses info
+    // Addresses info
     IERC20 public immutable exilon;
 
-    // private
-
+    // Connects an id and token address with the available amount of this token for this id
     mapping(uint256 => mapping(address => uint256)) private _totalSharesOfERC20;
-
-    uint256 private _lastId;
-    uint256 private _nonce;
 
     event LootboxMaded(address indexed maker, uint256 id, uint256 amount);
     event WithdrawLootbox(address indexed maker, uint256 id, uint256 amount);
     event IdDeleted(uint256 id, address indexed fundsHolder);
     event SuccessfullyWithdrawnTokens(
         address indexed user,
-        ExilonNftLootboxLibrary.TokenInfo[] tokens
+        ExilonNftLootboxLibrary.TokenInfo[] tokens,
+        address[] creators
     );
     event TransferFeeToCreator(address indexed creator, uint256 bnbAmount);
 
@@ -91,9 +101,8 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         uint256 oneExilon = 10**IERC20Metadata(address(_exilon)).decimals();
         amountOfExilonToOpenner = oneExilon;
 
-        uint256 oneDollar = 10**IERC20Metadata(_usdToken).decimals();
-        minimumOpeningPrice = oneDollar;
-        creatingPrice = oneDollar;
+        minimumOpeningPrice = _oneUsd;
+        creatingPrice = _oneUsd;
 
         exilonNftLootboxMain = _exilonNftLootboxMain;
         _exilonNftLootboxMain.init();
@@ -102,7 +111,7 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         _fundsHolderFactory.init();
 
         emit ChangeAmountOfExilonToOpenner(oneExilon);
-        emit PriceChanges(oneDollar, oneDollar, creatorPercentage);
+        emit PriceChanges(_oneUsd, _oneUsd, creatorPercentage);
         emit RandomParamsChange(minRandomPercentage, maxRandomPercentage, powParameter);
     }
 
@@ -113,7 +122,10 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         bool onMarket,
         string memory _uri
     ) external payable nonReentrant onlyEOA {
-        require(winningPlaces.length > 0, "ExilonNftLootbox: Must be at least one winning place");
+        require(
+            winningPlaces.length > 0,
+            "ExilonNftLootboxMaster: Must be at least one winning place"
+        );
 
         _checkFees(creatingPrice);
         _processFeeTransferOnFeeReceiver();
@@ -124,8 +136,7 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
             uint256 amountOfLootBoxes
         ) = ExilonNftLootboxLibrary.processTokensInfo(winningPlaces);
 
-        uint256 lastId = _lastId;
-        _lastId = lastId + 1;
+        uint256 lastId = _lastId++;
         {
             address receiver;
             if (onMarket) {
@@ -138,10 +149,14 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
 
         lootxesAmount[lastId] = amountOfLootBoxes;
 
-        require(_openingPrice >= minimumOpeningPrice, "ExilonNftLootbox: Opening price is too low");
+        require(
+            _openingPrice >= minimumOpeningPrice,
+            "ExilonNftLootboxMaster: Opening price is too low"
+        );
         openingPrice[lastId] = _openingPrice;
 
         idsToCreator[lastId] = msg.sender;
+        _creatorToIds[msg.sender].add(lastId);
 
         address fundsHolder = fundsHolderFactory.deployNewContract();
 
@@ -169,7 +184,7 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
     function buyId(uint256 id, uint256 amount) external payable nonReentrant onlyEOA {
         require(
             exilonNftLootboxMain.balanceOf(address(this), id) >= amount,
-            "ExilonNftLootbox: Not enough ids on market"
+            "ExilonNftLootboxMaster: Not enough ids on market"
         );
         _withdrawPrize(address(this), [id, amount]);
     }
@@ -187,7 +202,7 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         uint256 _minimumOpeningPrice,
         uint256 _creatorPercentage
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_creatorPercentage <= 10_000, "ExilonNftLootbox: Too big percentage");
+        require(_creatorPercentage <= 10_000, "ExilonNftLootboxMaster: Too big percentage");
 
         creatingPrice = _creatingPrice;
         minimumOpeningPrice = _minimumOpeningPrice;
@@ -207,9 +222,12 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
                 _minRandomPercentage <= 10_000 &&
                 _maxRandomPercentage >= 10_000 &&
                 _maxRandomPercentage <= 100_000,
-            "ExilonNftLootbox: Wrong percentage"
+            "ExilonNftLootboxMaster: Wrong percentage"
         ); // 50% min and 1000% max
-        require(_powParameter >= 1 && _powParameter <= 8, "ExilonNftLootbox: Wrong pow parameter");
+        require(
+            _powParameter >= 1 && _powParameter <= 8,
+            "ExilonNftLootboxMaster: Wrong pow parameter"
+        );
 
         minRandomPercentage = _minRandomPercentage;
         maxRandomPercentage = _maxRandomPercentage;
@@ -218,11 +236,13 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         emit RandomParamsChange(_minRandomPercentage, _maxRandomPercentage, _powParameter);
     }
 
-    function setOpeningPriceForId(uint256 id, uint256 newOpeningPrice)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        require(lootxesAmount[id] > 0, "ExilonNftLootbox: No such id");
+    function setOpeningPriceForId(uint256 id, uint256 newOpeningPrice) external {
+        require(
+            msg.sender == idsToCreator[id] || hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            "ExilonNftLootboxMaster: No access"
+        );
+        require(lootxesAmount[id] > 0, "ExilonNftLootboxMaster: No such id");
+        require(exilonNftLootboxMain.lootboxType(id) == ExilonNftLootboxLibrary.LootBoxType.DEFAULT, "ExilonNftLootboxMaster: Only default");
 
         openingPrice[id] = newOpeningPrice;
 
@@ -243,18 +263,29 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         return _getBnbAmountToFront(openingPrice[id] * amount);
     }
 
-    function getRestPrizesInfo(uint256 id)
+    function getRestPrizesLength(uint256 id) external view returns(uint256) {
+        return prizes[id].length;
+    }
+
+    function getRestPrizesInfo(uint256 id, uint256 indexFrom, uint256 indexTo)
         external
         view
         returns (ExilonNftLootboxLibrary.WinningPlace[] memory result)
     {
-        result = prizes[id];
-        address _fundsHolder = idsToFundsHolders[id];
-        for (uint256 i = 0; i < result.length; ++i) {
+        uint256 fullLength = prizes[id].length;
+        if (indexFrom > indexTo || indexTo > fullLength || indexTo - indexFrom > fullLength) {
+            return result;
+        }
+
+        result = new ExilonNftLootboxLibrary.WinningPlace[](indexTo - indexFrom);
+
+        address fundsHolder = idsToFundsHolders[id];
+        for (uint256 i = 0; i < indexTo - indexFrom; ++i) {
+            result[i] = prizes[id][i + indexFrom];
             for (uint256 j = 0; j < result[i].prizesInfo.length; ++j) {
                 if (result[i].prizesInfo[j].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
                     result[i].prizesInfo[j].amount =
-                        (IERC20(result[i].prizesInfo[j].tokenAddress).balanceOf(_fundsHolder) *
+                        (IERC20(result[i].prizesInfo[j].tokenAddress).balanceOf(fundsHolder) *
                             result[i].prizesInfo[j].amount) /
                         _totalSharesOfERC20[id][result[i].prizesInfo[j].tokenAddress];
                 }
@@ -262,8 +293,16 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         }
     }
 
+    function creatorToIdsLen(address creator) external view returns (uint256) {
+        return _creatorToIds[creator].length();
+    }
+
+    function creatorToIdsIndex(address creator, uint256 index) external view returns (uint256) {
+        return _creatorToIds[creator].at(index);
+    }
+
     function _withdrawPrize(address redeemer, uint256[2] memory idAndAmount) private {
-        require(idAndAmount[1] > 0, "ExilonNftLootbox: Low amount");
+        require(idAndAmount[1] > 0, "ExilonNftLootboxMaster: Low amount");
 
         exilonNftLootboxMain.burn(redeemer, idAndAmount[0], idAndAmount[1]);
 
@@ -271,21 +310,21 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
             uint256 bnbAmount = _checkFees(openingPrice[idAndAmount[0]] * idAndAmount[1]);
             _processFeeTransferOpening(idAndAmount[0], bnbAmount);
         } else {
-            require(msg.value == 0, "ExilonNftLootbox: For creator open free");
+            require(msg.value == 0, "ExilonNftLootboxMaster: For creator open free");
         }
 
         _sendExilonToOpenner();
 
         ExilonNftLootboxLibrary.WinningPlace[] memory _prizes = prizes[idAndAmount[0]];
         uint256 restLootboxes = lootxesAmount[idAndAmount[0]];
-        address _fundsHolder = idsToFundsHolders[idAndAmount[0]];
+        address fundsHolder = idsToFundsHolders[idAndAmount[0]];
         uint256 nonce = _nonce;
 
         ExilonNftLootboxLibrary.TokenInfo[]
             memory successWithdrawTokens = new ExilonNftLootboxLibrary.TokenInfo[](
                 ExilonNftLootboxLibrary.MAX_TOKENS_IN_LOOTBOX
             );
-        uint256 lastIndex = 0;
+        uint256 lastIndexWithdrawTokens;
 
         uint256[3] memory randomParameters = [
             minRandomPercentage,
@@ -294,23 +333,24 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         ];
 
         for (uint256 i = 0; i < idAndAmount[1]; ++i) {
-            uint256 randomNumber = ExilonNftLootboxLibrary.getRandomNumber(++nonce, restLootboxes);
+            uint256 winningIndex = ExilonNftLootboxLibrary.getWinningIndex(
+                _prizes,
+                ExilonNftLootboxLibrary.getRandomNumber(++nonce, restLootboxes)
+            );
             restLootboxes -= 1;
-
-            uint256 winningIndex = ExilonNftLootboxLibrary.getWinningIndex(_prizes, randomNumber);
 
             (
                 _prizes[winningIndex].prizesInfo,
                 successWithdrawTokens,
-                lastIndex,
+                lastIndexWithdrawTokens,
                 nonce
             ) = _withdrawWinningPlace(
                 _prizes[winningIndex].prizesInfo,
-                _fundsHolder,
+                fundsHolder,
                 [
                     _prizes[winningIndex].placeAmounts,
                     idAndAmount[0],
-                    lastIndex,
+                    lastIndexWithdrawTokens,
                     nonce,
                     randomParameters[0],
                     randomParameters[1],
@@ -327,20 +367,24 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
             );
         }
 
-        uint256 numberToDecrease = ExilonNftLootboxLibrary.MAX_TOKENS_IN_LOOTBOX - lastIndex;
-        assembly {
-            mstore(successWithdrawTokens, sub(mload(successWithdrawTokens), numberToDecrease))
+        {
+            uint256 numberToDecrease = ExilonNftLootboxLibrary.MAX_TOKENS_IN_LOOTBOX -
+                lastIndexWithdrawTokens;
+            assembly {
+                mstore(successWithdrawTokens, sub(mload(successWithdrawTokens), numberToDecrease))
+            }
         }
 
         lootxesAmount[idAndAmount[0]] = restLootboxes;
         _nonce = nonce;
 
-        if (restLootboxes == 0) {
-            _deleteId(idAndAmount[0], _fundsHolder);
-        }
-
         emit WithdrawLootbox(msg.sender, idAndAmount[0], idAndAmount[1]);
-        emit SuccessfullyWithdrawnTokens(msg.sender, successWithdrawTokens);
+        // emit SuccessfullyWithdrawnTokens(msg.sender, successWithdrawTokens, idsToCreator[idAndAmount[0]]);
+        // TODO
+
+        if (restLootboxes == 0) {
+            _deleteId(idAndAmount[0], fundsHolder);
+        }
     }
 
     function _deleteId(uint256 id, address fundsHolder) private {
@@ -355,16 +399,20 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
     }
 
     function _processFeeTransferOpening(uint256 id, uint256 bnbAmount) private {
-        uint256 amountToCreator = (bnbAmount * creatorPercentage) / 10_000;
+        if (exilonNftLootboxMain.lootboxType(id) == ExilonNftLootboxLibrary.LootBoxType.DEFAULT) {
+            uint256 amountToCreator = (bnbAmount * creatorPercentage) / 10_000;
 
-        // creator is not a contract and shouldn't fail
-        address creator = idsToCreator[id];
-        (bool success, ) = creator.call{value: amountToCreator}("");
-        require(success, "ExilonNftLootbox: Transfer to creator");
+            // creator is not a contract and shouldn't fail
+            address creator = idsToCreator[id];
+            (bool success, ) = creator.call{value: amountToCreator}("");
+            require(success, "ExilonNftLootboxMaster: Transfer to creator");
 
-        emit TransferFeeToCreator(creator, amountToCreator);
+            emit TransferFeeToCreator(creator, amountToCreator);
 
-        _processFeeTransferOnFeeReceiver();
+            _processFeeTransferOnFeeReceiver();
+        } else {
+            _processFeeTransferOnFeeReceiver();
+        }
     }
 
     function _sendExilonToOpenner() private {

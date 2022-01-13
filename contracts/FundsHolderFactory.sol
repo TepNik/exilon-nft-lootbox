@@ -25,6 +25,7 @@ contract FundsHolderFactory is IFundsHolderFactory {
     }
 
     function init() external {
+        require(masterContract == address(0), "FundsHolderFactory: Has already initialized");
         masterContract = msg.sender;
     }
 

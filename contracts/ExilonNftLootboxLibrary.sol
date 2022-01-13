@@ -21,6 +21,12 @@ library ExilonNftLootboxLibrary {
         ERC1155
     }
 
+    enum LootBoxType {
+        DEFAULT,
+        MEGA_LOOTBOX_RESERVE,
+        MEGA_LOOTBOX_NO_RESERVE
+    }
+
     struct TokenInfo {
         address tokenAddress;
         TokenType tokenType;
@@ -30,6 +36,7 @@ library ExilonNftLootboxLibrary {
 
     struct WinningPlace {
         uint256 placeAmounts;
+        address creator;
         TokenInfo[] prizesInfo;
     }
 
