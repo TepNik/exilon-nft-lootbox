@@ -44,12 +44,18 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         masterContract = msg.sender;
     }
 
-    function setIdMega(uint256 id, ExilonNftLootboxLibrary.LootBoxType setType) external onlyManagerOrAdmin {
+    function setIdMega(uint256 id, ExilonNftLootboxLibrary.LootBoxType setType)
+        external
+        onlyManagerOrAdmin
+    {
         require(_totalSupply[id] > 0, "ExilonNftLootboxMain: Id doesn't exist");
-        require(lootboxType[id] == ExilonNftLootboxLibrary.LootBoxType.DEFAULT, "ExilonNftLootboxMain: Only default");
+        require(
+            lootboxType[id] == ExilonNftLootboxLibrary.LootBoxType.DEFAULT,
+            "ExilonNftLootboxMain: Only default"
+        );
         require(
             setType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_RESERVE ||
-            setType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_NO_RESERVE,
+                setType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_NO_RESERVE,
             "ExilonNftLootboxMain: Wrong set type"
         );
 

@@ -170,23 +170,38 @@ contract NftMarketplace is FeesCalculator {
         emit SellCanceled(msg.sender, id);
     }
 
-    function sendAddressOnModeration(ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo) external payable nonReentrant onlyEOA {
+    function sendAddressOnModeration(ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo)
+        external
+        payable
+        nonReentrant
+        onlyEOA
+    {
         _checkInputData(tokenInfo);
-        require(isTokenModerated[tokenInfo.tokenAddress][tokenInfo.id] == false, "NftMarketplace: Moderated");
-        require(isOnModeration[tokenInfo.tokenAddress][tokenInfo.id] == false, "NftMarketplace: Moderating");
+        require(
+            isTokenModerated[tokenInfo.tokenAddress][tokenInfo.id] == false,
+            "NftMarketplace: Moderated"
+        );
+        require(
+            isOnModeration[tokenInfo.tokenAddress][tokenInfo.id] == false,
+            "NftMarketplace: Moderating"
+        );
 
         _checkFees(moderationPrice);
         _processFeeTransferOnFeeReceiver();
 
-        _moderationRequests.push(ModerationInfo({
-            tokenInfo: tokenInfo,
-            requestingAddress: msg.sender
-        }));
+        _moderationRequests.push(
+            ModerationInfo({tokenInfo: tokenInfo, requestingAddress: msg.sender})
+        );
 
         emit ModerationRequest(msg.sender, tokenInfo);
     }
 
-    function buyTokenState(ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo, uint256 stateNum) external payable nonReentrant onlyEOA {
+    function buyTokenState(ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo, uint256 stateNum)
+        external
+        payable
+        nonReentrant
+        onlyEOA
+    {
         require(stateNum < NUMBER_OF_STATES, "NftMarketplace: State number");
         _checkInputData(tokenInfo);
 
@@ -213,10 +228,14 @@ contract NftMarketplace is FeesCalculator {
         delete isOnModeration[moderationInfo.tokenInfo.tokenAddress][moderationInfo.tokenInfo.id];
 
         if (decision) {
-            isTokenModerated[moderationInfo.tokenInfo.tokenAddress][moderationInfo.tokenInfo.id] = true;
+            isTokenModerated[moderationInfo.tokenInfo.tokenAddress][
+                moderationInfo.tokenInfo.id
+            ] = true;
 
             _moderatedTokens.push();
-            _moderatedTokenId[moderationInfo.tokenInfo.tokenAddress][moderationInfo.tokenInfo.id] = _moderatedTokens.length - 1;
+            _moderatedTokenId[moderationInfo.tokenInfo.tokenAddress][moderationInfo.tokenInfo.id] =
+                _moderatedTokens.length -
+                1;
 
             emit ModerationPass(moderationInfo.tokenInfo);
         } else {
@@ -224,7 +243,10 @@ contract NftMarketplace is FeesCalculator {
         }
     }
 
-    function cancelModeration(ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo) external onlyManagerOrAdmin {
+    function cancelModeration(ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo)
+        external
+        onlyManagerOrAdmin
+    {
         _checkInputData(tokenInfo);
 
         bool isModerated = isTokenModerated[tokenInfo.tokenAddress][tokenInfo.id];
@@ -233,12 +255,10 @@ contract NftMarketplace is FeesCalculator {
 
             uint256 indexDeleting = _moderatedTokenId[tokenInfo.tokenAddress][tokenInfo.id];
             uint256 length = _moderatedTokens.length;
-            if (indexDeleting < length - 1) {
-
-            }
+            if (indexDeleting < length - 1) {}
             _moderatedTokens.pop();
 
-            for(uint256 i = 0; i < NUMBER_OF_STATES; ++i) {
+            for (uint256 i = 0; i < NUMBER_OF_STATES; ++i) {
                 delete _tokenStates[tokenInfo.tokenAddress][tokenInfo.id][i];
             }
 
@@ -246,14 +266,15 @@ contract NftMarketplace is FeesCalculator {
         }
     }
 
-    function setStateInfo(uint256 stateNum, uint256 price, uint256 duration) external onlyManagerOrAdmin {
+    function setStateInfo(
+        uint256 stateNum,
+        uint256 price,
+        uint256 duration
+    ) external onlyManagerOrAdmin {
         require(stateNum < NUMBER_OF_STATES, "NftMarketplace: State number");
         require(price > 0, "NftMarketplace: Wrong price");
 
-        tokenStateInfo[stateNum] = TokenStateInfo({
-            price: price,
-            duration: duration
-        });
+        tokenStateInfo[stateNum] = TokenStateInfo({price: price, duration: duration});
 
         emit StateInfoChange(stateNum, price, duration);
     }
@@ -295,25 +316,36 @@ contract NftMarketplace is FeesCalculator {
         return _userToActiveIds[user].at(index);
     }
 
-    function moderationRequestsLen() external view returns(uint256) {
+    function moderationRequestsLen() external view returns (uint256) {
         return _moderationRequests.length;
     }
 
-    function moderationRequestsIndex(uint256 indexFrom, uint256 indexTo) external view returns(ModerationInfo[] memory result) {
+    function moderationRequestsIndex(uint256 indexFrom, uint256 indexTo)
+        external
+        view
+        returns (ModerationInfo[] memory result)
+    {
         uint256 fullLength = _moderationRequests.length;
         if (indexFrom > indexTo || indexTo > fullLength || indexTo - indexFrom > fullLength) {
             return result;
         }
 
         result = new ModerationInfo[](indexTo - indexFrom);
-        for(uint256 i = indexFrom; i < indexTo; ++i) {
+        for (uint256 i = indexFrom; i < indexTo; ++i) {
             result[i - indexFrom] = _moderationRequests[i];
         }
     }
 
-    function getTokenStates(ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo) external view returns(bool[NUMBER_OF_STATES] memory result) {
-        for(uint256 i = 0; i < NUMBER_OF_STATES; ++i) {
-            result[i] = _tokenStates[tokenInfo.tokenAddress][tokenInfo.id][i] + tokenStateInfo[i].duration >= block.timestamp;
+    function getTokenStates(ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo)
+        external
+        view
+        returns (bool[NUMBER_OF_STATES] memory result)
+    {
+        for (uint256 i = 0; i < NUMBER_OF_STATES; ++i) {
+            result[i] =
+                _tokenStates[tokenInfo.tokenAddress][tokenInfo.id][i] +
+                    tokenStateInfo[i].duration >=
+                block.timestamp;
         }
     }
 

@@ -22,5 +22,5 @@ interface IExilonNftLootboxMain is IERC1155 {
         uint256 amount
     ) external;
 
-    function lootboxType(uint256 id) external view returns(ExilonNftLootboxLibrary.LootBoxType);
+    function lootboxType(uint256 id) external view returns (ExilonNftLootboxLibrary.LootBoxType);
 }

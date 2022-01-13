@@ -242,7 +242,10 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
             "ExilonNftLootboxMaster: No access"
         );
         require(lootxesAmount[id] > 0, "ExilonNftLootboxMaster: No such id");
-        require(exilonNftLootboxMain.lootboxType(id) == ExilonNftLootboxLibrary.LootBoxType.DEFAULT, "ExilonNftLootboxMaster: Only default");
+        require(
+            exilonNftLootboxMain.lootboxType(id) == ExilonNftLootboxLibrary.LootBoxType.DEFAULT,
+            "ExilonNftLootboxMaster: Only default"
+        );
 
         openingPrice[id] = newOpeningPrice;
 
@@ -263,15 +266,15 @@ contract ExilonNftLootboxMaster is ERC1155Holder, FeesCalculator {
         return _getBnbAmountToFront(openingPrice[id] * amount);
     }
 
-    function getRestPrizesLength(uint256 id) external view returns(uint256) {
+    function getRestPrizesLength(uint256 id) external view returns (uint256) {
         return prizes[id].length;
     }
 
-    function getRestPrizesInfo(uint256 id, uint256 indexFrom, uint256 indexTo)
-        external
-        view
-        returns (ExilonNftLootboxLibrary.WinningPlace[] memory result)
-    {
+    function getRestPrizesInfo(
+        uint256 id,
+        uint256 indexFrom,
+        uint256 indexTo
+    ) external view returns (ExilonNftLootboxLibrary.WinningPlace[] memory result) {
         uint256 fullLength = prizes[id].length;
         if (indexFrom > indexTo || indexTo > fullLength || indexTo - indexFrom > fullLength) {
             return result;

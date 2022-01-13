@@ -36,7 +36,6 @@ library ExilonNftLootboxLibrary {
 
     struct WinningPlace {
         uint256 placeAmounts;
-        address creator;
         TokenInfo[] prizesInfo;
     }
 

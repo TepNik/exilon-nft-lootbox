@@ -36,7 +36,10 @@ contract FeesCalculator is AccessControl, ReentrancyGuard {
     }
 
     modifier onlyManagerOrAdmin() {
-        require(hasRole(MANAGER_ROLE, msg.sender) || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "ExilonNftLootbox: No access");
+        require(
+            hasRole(MANAGER_ROLE, msg.sender) || hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            "ExilonNftLootbox: No access"
+        );
         _;
     }
 
