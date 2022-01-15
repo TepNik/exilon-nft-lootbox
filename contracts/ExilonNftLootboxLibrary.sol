@@ -40,7 +40,7 @@ library ExilonNftLootboxLibrary {
     }
 
     uint256 public constant MAX_TOKENS_IN_LOOTBOX = 200;
-    uint256 public constant MAX_GAS_FOR_TOKEN_TRANSFER = 3_000_000;
+    uint256 public constant MAX_GAS_FOR_TOKEN_TRANSFER = 1_500_000;
     uint256 public constant MAX_GAS_FOR_ETH_TRANSFER = 500_000;
 
     event BadERC20TokenWithdraw(
@@ -78,6 +78,10 @@ library ExilonNftLootboxLibrary {
                     IERC20(tokenInfo.tokenAddress).safeTransfer(to, tokenInfo.amount);
                     return true;
                 } else {
+                    require(
+                        gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
+                        "ExilonNftLootboxLibrary: Not enough gas"
+                    );
                     (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                         gas: MAX_GAS_FOR_TOKEN_TRANSFER
                     }(abi.encodeWithSelector(IERC20.transfer.selector, to, tokenInfo.amount));
@@ -97,6 +101,10 @@ library ExilonNftLootboxLibrary {
                     IERC20(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.amount);
                     return true;
                 } else {
+                    require(
+                        gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
+                        "ExilonNftLootboxLibrary: Not enough gas"
+                    );
                     (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                         gas: MAX_GAS_FOR_TOKEN_TRANSFER
                     }(
@@ -124,6 +132,10 @@ library ExilonNftLootboxLibrary {
                 IERC721(tokenInfo.tokenAddress).safeTransferFrom(from, to, tokenInfo.id);
                 return true;
             } else {
+                require(
+                    gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
+                    "ExilonNftLootboxLibrary: Not enough gas"
+                );
                 (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                     gas: MAX_GAS_FOR_TOKEN_TRANSFER
                 }(
@@ -156,6 +168,10 @@ library ExilonNftLootboxLibrary {
                 );
                 return true;
             } else {
+                require(
+                    gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
+                    "ExilonNftLootboxLibrary: Not enough gas"
+                );
                 (bool success, bytes memory result) = tokenInfo.tokenAddress.call{
                     gas: MAX_GAS_FOR_TOKEN_TRANSFER
                 }(
@@ -182,6 +198,75 @@ library ExilonNftLootboxLibrary {
             }
         } else {
             revert("ExilonNftLootboxLibrary: Wrong type of token");
+        }
+    }
+
+    struct processMergeInfoInputStruct {
+        uint256 idFrom;
+        uint256 idTo;
+        address tokenAddress;
+        TokenType tokenType;
+        uint256 balanceBefore;
+        address fundsHolderTo;
+        address processingTokenAddress;
+        ExilonNftLootboxLibrary.WinningPlace[] winningPlacesFrom;
+    }
+
+    function processMergeInfo(
+        processMergeInfoInputStruct memory input,
+        mapping(uint256 => mapping(address => uint256)) storage totalSharesOfERC20,
+        mapping(uint256 => WinningPlace[]) storage _prizes
+    ) external {
+        if (input.tokenType == TokenType.ERC20) {
+            uint256 totalSharesTo = totalSharesOfERC20[input.idTo][input.tokenAddress];
+            uint256 totalSharesFrom = totalSharesOfERC20[input.idFrom][input.tokenAddress];
+            if (totalSharesTo == 0) {
+                totalSharesOfERC20[input.idTo][input.tokenAddress] = totalSharesFrom;
+            } else {
+                uint256 balanceAfter = IERC20(input.tokenAddress).balanceOf(input.fundsHolderTo);
+
+                require(
+                    balanceAfter > input.balanceBefore,
+                    "ExilonNftLootboxMaster: Merge balance error"
+                );
+                uint256 newSharesAmount = (balanceAfter * totalSharesTo) /
+                    input.balanceBefore -
+                    totalSharesTo;
+                totalSharesOfERC20[input.idTo][input.tokenAddress] =
+                    totalSharesTo +
+                    newSharesAmount;
+
+                for (uint256 i = 0; i < input.winningPlacesFrom.length; ++i) {
+                    for (uint256 j = 0; j < input.winningPlacesFrom[j].prizesInfo.length; ++j) {
+                        if (
+                            input.winningPlacesFrom[i].prizesInfo[j].tokenAddress ==
+                            input.processingTokenAddress
+                        ) {
+                            _prizes[input.idFrom][i].prizesInfo[j].amount =
+                                (input.winningPlacesFrom[i].prizesInfo[j].amount *
+                                    newSharesAmount) /
+                                totalSharesFrom;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    function mergeWinningPrizeInfo(
+        uint256 idFrom,
+        uint256 idTo,
+        uint256 lengthTo,
+        uint256 lengthFrom,
+        address creatorFrom,
+        mapping(uint256 => WinningPlace[]) storage _prizes,
+        mapping(uint256 => mapping(uint256 => address)) storage _winningPlaceCreator
+    ) external {
+        for (uint256 i = lengthFrom; i > 0; --i) {
+            _prizes[idTo].push(_prizes[idFrom][i - 1]);
+            _prizes[idFrom].pop();
+            _winningPlaceCreator[idTo][lengthTo] = creatorFrom;
+            ++lengthTo;
         }
     }
 
@@ -330,20 +415,26 @@ library ExilonNftLootboxLibrary {
 
     function removeWinningPlace(
         WinningPlace[] memory restPrizes,
-        uint256 id,
         uint256 winningIndex,
-        mapping(uint256 => WinningPlace[]) storage prizes
+        WinningPlace[] storage winningPlaces,
+        bool needToPeplaceCreators,
+        mapping(uint256 => address) storage winningPlaceCreator
     ) external returns (WinningPlace[] memory) {
         restPrizes[winningIndex].placeAmounts -= 1;
-        prizes[id][winningIndex].placeAmounts -= 1;
+        winningPlaces[winningIndex].placeAmounts -= 1;
         if (restPrizes[winningIndex].placeAmounts == 0) {
             uint256 len = restPrizes.length;
             if (winningIndex < len - 1) {
-                prizes[id][winningIndex] = prizes[id][len - 1];
+                winningPlaces[winningIndex] = winningPlaces[len - 1];
                 restPrizes[winningIndex] = restPrizes[len - 1];
+
+                if (needToPeplaceCreators) {
+                    winningPlaceCreator[winningIndex] = winningPlaceCreator[len - 1];
+                }
             }
 
-            prizes[id].pop();
+            delete winningPlaceCreator[len];
+            winningPlaces.pop();
 
             assembly {
                 mstore(restPrizes, sub(mload(restPrizes), 1))
@@ -351,6 +442,33 @@ library ExilonNftLootboxLibrary {
         }
 
         return restPrizes;
+    }
+
+    function getUsdPriceOfAToken(
+        IPancakeRouter02 pancakeRouter,
+        address usdToken,
+        address weth,
+        address token,
+        uint256 amount
+    ) external view returns (uint256) {
+        if (amount == 0) {
+            return 0;
+        }
+
+        if (token == usdToken) {
+            return amount;
+        } else if (token == weth) {
+            address[] memory path = new address[](2);
+            path[0] = weth;
+            path[1] = usdToken;
+            return (pancakeRouter.getAmountsOut(amount, path))[1];
+        } else {
+            address[] memory path = new address[](3);
+            path[0] = token;
+            path[1] = weth;
+            path[2] = usdToken;
+            return (pancakeRouter.getAmountsOut(amount, path))[2];
+        }
     }
 
     function sendTokenCarefully(
@@ -372,8 +490,16 @@ library ExilonNftLootboxLibrary {
         if (amount > 0) {
             bool success;
             if (address(token) == address(0)) {
+                require(
+                    gasleft() >= MAX_GAS_FOR_ETH_TRANSFER,
+                    "ExilonNftLootboxLibrary: Not enough gas"
+                );
                 (success, ) = msg.sender.call{gas: MAX_GAS_FOR_ETH_TRANSFER, value: amount}("");
             } else {
+                require(
+                    gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
+                    "ExilonNftLootboxLibrary: Not enough gas"
+                );
                 (success, ) = address(token).call{gas: MAX_GAS_FOR_TOKEN_TRANSFER}(
                     abi.encodeWithSelector(IERC20.transfer.selector, msg.sender, amount)
                 );
@@ -390,67 +516,72 @@ library ExilonNftLootboxLibrary {
         }
     }
 
-    function getWinningAmount(
-        uint256 totalShares,
-        uint256 prizeInfoAmount,
-        address tokenAddress,
-        address fundsHolder,
-        // 0 - winningPlaceAmounts, 1 - id, 2 - lastIndex, 3 - nonce, 4 - minRandomPercentage, 5 - maxRandomPercentage, 6 - powParameter
-        uint256[7] memory uint256Parameters
-    ) external view returns (uint256[3] memory winningAmountInfo) {
-        uint256 totalAmountOnFundsHolder = IERC20(tokenAddress).balanceOf(fundsHolder);
+    struct getWinningAmountInputStruct {
+        uint256 totalShares;
+        uint256 prizeInfoAmount;
+        address tokenAddress;
+        address fundsHolder;
+        uint256 winningPlaceAmounts;
+        uint256 nonce;
+        uint256 minRandomPercentage;
+        uint256 maxRandomPercentage;
+        uint256 powParameter;
+    }
 
-        uint256 totalAmountOfSharesForWinnginPlace = prizeInfoAmount * uint256Parameters[0];
+    struct getWinningAmountOutputStruct {
+        uint256 rawAmount;
+        uint256 sharesAmount;
+        uint256 newPrizeInfoAmount;
+    }
+
+    function getWinningAmount(getWinningAmountInputStruct memory input)
+        external
+        view
+        returns (getWinningAmountOutputStruct memory output)
+    {
+        uint256 totalAmountOnFundsHolder = IERC20(input.tokenAddress).balanceOf(input.fundsHolder);
+
+        uint256 totalAmountOfSharesForWinnginPlace = input.prizeInfoAmount *
+            input.winningPlaceAmounts;
         uint256 totalAmountOfFundsForWinningPlace = (totalAmountOnFundsHolder *
-            totalAmountOfSharesForWinnginPlace) / totalShares;
+            totalAmountOfSharesForWinnginPlace) / input.totalShares;
 
-        if (uint256Parameters[0] == 1) {
-            return [
-                totalAmountOfFundsForWinningPlace,
-                totalAmountOfSharesForWinnginPlace,
-                prizeInfoAmount
-            ];
+        if (input.winningPlaceAmounts == 1) {
+            return
+                getWinningAmountOutputStruct({
+                    rawAmount: totalAmountOfFundsForWinningPlace,
+                    sharesAmount: totalAmountOfSharesForWinnginPlace,
+                    newPrizeInfoAmount: input.prizeInfoAmount
+                });
         }
 
-        uint256 randomNumber = getRandomNumber(uint256Parameters[3], 1000);
+        uint256 randomNumber = getRandomNumber(input.nonce, 1000);
 
         (uint256 minWinningAmount, uint256 maxWinningAmount) = _getMinAndMaxAmount(
             totalAmountOfFundsForWinningPlace,
-            uint256Parameters[0],
-            uint256Parameters[4],
-            uint256Parameters[5]
+            input.winningPlaceAmounts,
+            input.minRandomPercentage,
+            input.maxRandomPercentage
         );
-        uint256 winningAmount = minWinningAmount +
-            (((maxWinningAmount - minWinningAmount) * randomNumber**uint256Parameters[6]) /
-                1000**uint256Parameters[6]);
+        output.rawAmount =
+            minWinningAmount +
+            (((maxWinningAmount - minWinningAmount) * randomNumber**input.powParameter) /
+                1000**input.powParameter);
 
         (uint256 minSharesAmount, uint256 maxSharesAmount) = _getMinAndMaxAmount(
             totalAmountOfSharesForWinnginPlace,
-            uint256Parameters[0],
-            uint256Parameters[4],
-            uint256Parameters[5]
+            input.winningPlaceAmounts,
+            input.minRandomPercentage,
+            input.maxRandomPercentage
         );
-        uint256 sharesAmount = minSharesAmount +
-            (((maxSharesAmount - minSharesAmount) * randomNumber**uint256Parameters[6]) /
-                1000**uint256Parameters[6]);
+        output.sharesAmount =
+            minSharesAmount +
+            (((maxSharesAmount - minSharesAmount) * randomNumber**input.powParameter) /
+                1000**input.powParameter);
 
-        uint256 newPrizeInfoAmount = (totalAmountOfSharesForWinnginPlace - sharesAmount) /
-            (uint256Parameters[0] - 1);
-
-        // 0 - raw amount, 1 - amount in shares
-        return [winningAmount, sharesAmount, newPrizeInfoAmount];
-    }
-
-    function getBnbAmount(
-        IPancakeRouter02 pancakeRouter,
-        address weth,
-        address usdToken,
-        uint256 amount
-    ) external view returns (uint256) {
-        address[] memory path = new address[](2);
-        path[0] = weth;
-        path[1] = usdToken;
-        return (pancakeRouter.getAmountsIn(amount, path))[0];
+        output.newPrizeInfoAmount =
+            (totalAmountOfSharesForWinnginPlace - output.sharesAmount) /
+            (input.winningPlaceAmounts - 1);
     }
 
     function _getMinAndMaxAmount(
@@ -470,33 +601,42 @@ library ExilonNftLootboxLibrary {
         }
     }
 
-    function addTokenInfoToAllTokensArray(
-        TokenInfo memory prizeInfo,
-        uint256 balanceBefore,
-        // 0 - winningPlaceAmounts, 1 - id, 2 - lastIndex, 3 - nonce, 4 - minRandomPercentage, 5 - maxRandomPercentage, 6 - powParameter
-        uint256[7] memory uint256Parameters,
-        TokenInfo[] memory successWithdrawTokens
-    ) external view returns (TokenInfo[] memory, uint256[7] memory) {
-        if (prizeInfo.tokenType == TokenType.ERC20) {
-            uint256 balanceAfter = IERC20(prizeInfo.tokenAddress).balanceOf(msg.sender);
-            prizeInfo.amount = balanceAfter - balanceBefore;
+    struct addTokenInfoToAllTokensArrayInputStruct {
+        TokenInfo prizeInfo;
+        uint256 balanceBefore;
+        uint256 lastIndex;
+        TokenInfo[] successWithdrawTokens;
+    }
+
+    function addTokenInfoToAllTokensArray(addTokenInfoToAllTokensArrayInputStruct memory input)
+        external
+        view
+        returns (
+            TokenInfo[] memory,
+            uint256,
+            uint256
+        )
+    {
+        if (input.prizeInfo.tokenType == TokenType.ERC20) {
+            uint256 balanceAfter = IERC20(input.prizeInfo.tokenAddress).balanceOf(msg.sender);
+            input.prizeInfo.amount = balanceAfter - input.balanceBefore;
         }
 
         uint256 index = _findTokenInTokenInfoArray(
-            successWithdrawTokens,
-            uint256Parameters[2],
-            prizeInfo.tokenAddress,
-            prizeInfo.id
+            input.successWithdrawTokens,
+            input.lastIndex,
+            input.prizeInfo.tokenAddress,
+            input.prizeInfo.id
         );
         if (index != type(uint256).max) {
-            successWithdrawTokens[index].amount += prizeInfo.amount;
+            input.successWithdrawTokens[index].amount += input.prizeInfo.amount;
         } else {
-            successWithdrawTokens[uint256Parameters[2]] = prizeInfo;
+            input.successWithdrawTokens[input.lastIndex] = input.prizeInfo;
 
-            ++uint256Parameters[2];
+            ++input.lastIndex;
         }
 
-        return (successWithdrawTokens, uint256Parameters);
+        return (input.successWithdrawTokens, input.lastIndex, input.prizeInfo.amount);
     }
 
     function _getRevertMsg(bytes memory revertData)

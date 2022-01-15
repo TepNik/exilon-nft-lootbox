@@ -23,11 +23,33 @@ async function main() {
         dexRouterAddress = config.dexRouterMainnet;
     }
 
+    const AccessFactory = await hre.ethers.getContractFactory("Access");
+    console.log("Deploying Access...");
+    const AccessInst = await AccessFactory.deploy();
+    await AccessInst.deployed();
+    console.log("Access deployed at", AccessInst.address);
+    try {
+        await hre.run("verify:verify", {
+            address: AccessInst.address,
+        });
+    } catch (error) {
+        console.log("Error =", error);
+    }
+
     const FeeReceiverFactory = await hre.ethers.getContractFactory("FeeReceiver");
-    FeeReceiverInst = await FeeReceiverFactory.deploy(
-        config.feeReceivers,
-        config.feeReceiverAmounts
-    );
+    let arguments = [config.feeReceivers, config.feeReceiverAmounts];
+    console.log("Deploying FeeReceiver...");
+    const FeeReceiverInst = await FeeReceiverFactory.deploy(...arguments);
+    await FeeReceiverInst.deployed();
+    console.log("FeeReceiver deployed at", FeeReceiverInst.address);
+    try {
+        await hre.run("verify:verify", {
+            address: FeeReceiverInst.address,
+            constructorArguments: arguments,
+        });
+    } catch (error) {
+        console.log("Error =", error);
+    }
 
     const ExilonNftLootboxLibraryFactory = await hre.ethers.getContractFactory(
         "ExilonNftLootboxLibrary"
@@ -35,34 +57,100 @@ async function main() {
     console.log("Deploying ExilonNftLootboxLibrary...");
     const ExilonNftLootboxLibraryInst = await ExilonNftLootboxLibraryFactory.deploy();
     await ExilonNftLootboxLibraryInst.deployed();
-    await hre.run("verify:verify", {
-        address: ExilonNftLootboxLibraryInst.address,
-    });
+    console.log("ExilonNftLootboxLibrary deployed at", ExilonNftLootboxLibraryInst.address);
+    try {
+        await hre.run("verify:verify", {
+            address: ExilonNftLootboxLibraryInst.address,
+        });
+    } catch (error) {
+        console.log("Error =", error);
+    }
 
-    const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory("ExilonNftLootboxMain");
-    console.log("Deploying ExilonNftLootboxMain...");
-    const ExilonNftLootboxMainInst = await ExilonNftLootboxMainFactory.deploy();
-    await ExilonNftLootboxMainInst.deployed();
-    await hre.run("verify:verify", {
-        address: ExilonNftLootboxMainInst.address,
+    const NftMarketplaceFactory = await hre.ethers.getContractFactory("NftMarketplace", {
+        libraries: {
+            ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
+        },
     });
+    arguments = [usdAddress, dexRouterAddress, FeeReceiverInst.address, AccessInst.address];
+    console.log("Deploying NftMarketplace...");
+    const NftMarketplaceInst = await NftMarketplaceFactory.deploy(...arguments);
+    await NftMarketplaceInst.deployed();
+    console.log("NftMarketplace deployed at", NftMarketplaceInst.address);
+    try {
+        await hre.run("verify:verify", {
+            address: NftMarketplaceInst.address,
+            constructorArguments: arguments,
+        });
+    } catch (error) {
+        console.log("Error =", error);
+    }
 
-    const ExilonNftLootboxMasterFactory = await hre.ethers.getContractFactory(
-        "ExilonNftLootboxMaster",
+    const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory(
+        "ExilonNftLootboxMain",
         {
             libraries: {
                 ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
             },
         }
     );
-    let arguments = [exilonAddress, usdAddress, dexRouterAddress, FeeReceiverInst.address];
+    arguments = [
+        NftMarketplaceInst.address,
+        usdAddress,
+        dexRouterAddress,
+        FeeReceiverInst.address,
+        AccessInst.address,
+    ];
+    console.log("Deploying ExilonNftLootboxMain...");
+    const ExilonNftLootboxMainInst = await ExilonNftLootboxMainFactory.deploy(...arguments);
+    await ExilonNftLootboxMainInst.deployed();
+    console.log("ExilonNftLootboxMain deployed at", ExilonNftLootboxMainInst.address);
+    try {
+        await hre.run("verify:verify", {
+            address: ExilonNftLootboxMainInst.address,
+            constructorArguments: arguments,
+        });
+    } catch (error) {
+        console.log("Error =", error);
+    }
+
+    const FundsHolderFactoryFactory = await hre.ethers.getContractFactory("FundsHolderFactory");
+    console.log("Deploying FundsHolderFactory...");
+    const FundsHolderFactoryInst = await FundsHolderFactoryFactory.deploy();
+    await FundsHolderFactoryInst.deployed();
+    console.log("FundsHolderFactory deployed at", FundsHolderFactoryInst.address);
+    try {
+        await hre.run("verify:verify", {
+            address: FundsHolderFactoryInst.address,
+        });
+    } catch (error) {
+        console.log("Error =", error);
+    }
+
+    const ExilonNftLootboxMasterFactory = await hre.ethers.getContractFactory(
+        "ExilonNftLootboxMaster"
+    );
+    arguments = [
+        exilonAddress,
+        exilonAddress,
+        usdAddress,
+        dexRouterAddress,
+        FeeReceiverInst.address,
+        AccessInst.address,
+        ExilonNftLootboxMainInst.address,
+        FundsHolderFactoryInst.address,
+    ];
     console.log("Deploying ExilonNftLootboxMaster...");
     const ExilonNftLootboxMasterInst = await ExilonNftLootboxMasterFactory.deploy(...arguments);
     await ExilonNftLootboxMasterInst.deployed();
-    await hre.run("verify:verify", {
-        address: ExilonNftLootboxMasterInst.address,
-        constructorArguments: arguments,
-    });
+    console.log("ExilonNftLootboxMaster deployed at", ExilonNftLootboxMasterInst.address);
+    try {
+        await hre.run("verify:verify", {
+            address: ExilonNftLootboxMasterInst.address,
+            constructorArguments: arguments,
+        });
+    } catch (error) {
+        console.log("Error =", error);
+    }
 
     /* await hre.run("verify:verify", {
         address: await ExilonNftLootboxInst.masterContract(),
@@ -72,36 +160,33 @@ async function main() {
     }); */
 
     const ERC721MainFactory = await hre.ethers.getContractFactory("ERC721Main");
-    arguments = [usdAddress, dexRouterAddress, FeeReceiverInst.address];
+    arguments = [usdAddress, dexRouterAddress, FeeReceiverInst.address, AccessInst.address];
     console.log("Deploying ERC721Main...");
     const ERC721MainInst = await ERC721MainFactory.deploy(...arguments);
     await ERC721MainInst.deployed();
-    await hre.run("verify:verify", {
-        address: ERC721MainInst.address,
-        constructorArguments: arguments,
-    });
+    console.log("ERC721Main deployed at", ERC721MainInst.address);
+    try {
+        await hre.run("verify:verify", {
+            address: ERC721MainInst.address,
+            constructorArguments: arguments,
+        });
+    } catch (error) {
+        console.log("Error =", error);
+    }
 
     const ERC1155MainFactory = await hre.ethers.getContractFactory("ERC1155Main");
     console.log("Deploying ERC1155Main...");
     const ERC1155MainInst = await ERC1155MainFactory.deploy(...arguments);
     await ERC1155MainInst.deployed();
-    await hre.run("verify:verify", {
-        address: ERC1155MainInst.address,
-        constructorArguments: arguments,
-    });
-
-    const NftMarketplaceFactory = await hre.ethers.getContractFactory("NftMarketplace", {
-        libraries: {
-            ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
-        },
-    });
-    console.log("Deploying NftMarketplace...");
-    const NftMarketplaceInst = await NftMarketplaceFactory.deploy(...arguments);
-    await NftMarketplaceInst.deployed();
-    await hre.run("verify:verify", {
-        address: NftMarketplaceInst.address,
-        constructorArguments: arguments,
-    });
+    console.log("ERC1155Main deployed at", ERC1155MainInst.address);
+    try {
+        await hre.run("verify:verify", {
+            address: ERC1155MainInst.address,
+            constructorArguments: arguments,
+        });
+    } catch (error) {
+        console.log("Error =", error);
+    }
 }
 
 main()

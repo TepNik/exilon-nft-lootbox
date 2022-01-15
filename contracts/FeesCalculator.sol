@@ -2,29 +2,29 @@
 
 pragma solidity 0.8.11;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
 import "./ExilonNftLootboxLibrary.sol";
+import "./interfaces/IAccess.sol";
 
-contract FeesCalculator is AccessControl, ReentrancyGuard {
+contract FeesCalculator is ReentrancyGuard {
     // public
-
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     address public feeReceiver;
 
+    IAccess public immutable accessControl;
     address public immutable usdToken;
     IPancakeRouter02 public immutable pancakeRouter;
 
-    uint256 public extraPriceForFront = 500; // 5%
+    uint256 public extraPriceForFront = 1_000; // 10%
 
     // private
 
-    address private immutable _weth;
+    address internal immutable _weth;
+    bytes32 private immutable _MANAGER_ROLE;
 
     // internal
 
@@ -35,9 +35,15 @@ contract FeesCalculator is AccessControl, ReentrancyGuard {
         _;
     }
 
+    modifier onlyAdmin() {
+        require(accessControl.hasRole(bytes32(0), msg.sender), "ExilonNftLootbox: No access");
+        _;
+    }
+
     modifier onlyManagerOrAdmin() {
         require(
-            hasRole(MANAGER_ROLE, msg.sender) || hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            accessControl.hasRole(_MANAGER_ROLE, msg.sender) ||
+                accessControl.hasRole(bytes32(0), msg.sender),
             "ExilonNftLootbox: No access"
         );
         _;
@@ -54,7 +60,8 @@ contract FeesCalculator is AccessControl, ReentrancyGuard {
     constructor(
         address _usdToken,
         IPancakeRouter02 _pancakeRouter,
-        address _feeReceiver
+        address _feeReceiver,
+        IAccess _accessControl
     ) {
         usdToken = _usdToken;
         _oneUsd = 10**IERC20Metadata(_usdToken).decimals();
@@ -64,23 +71,24 @@ contract FeesCalculator is AccessControl, ReentrancyGuard {
 
         feeReceiver = _feeReceiver;
 
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        accessControl = _accessControl;
+        _MANAGER_ROLE = _accessControl.MANAGER_ROLE();
 
         emit FeeReceiverChange(_feeReceiver);
         emit ExtraPriceForFrontChange(extraPriceForFront);
     }
 
-    function processFeeTransferOnFeeReceiver() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function processFeeTransferOnFeeReceiver() external onlyAdmin {
         _processFeeTransferOnFeeReceiverPrivate(true);
     }
 
-    function setFeeReceiver(address newValue) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFeeReceiver(address newValue) external onlyAdmin {
         feeReceiver = newValue;
 
         emit FeeReceiverChange(newValue);
     }
 
-    function setExtraPriceForFront(uint256 newValue) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setExtraPriceForFront(uint256 newValue) external onlyAdmin {
         require(newValue <= 5_000, "FeesCalculator: Too big percentage"); // 50%
         extraPriceForFront = newValue;
 
@@ -98,10 +106,18 @@ contract FeesCalculator is AccessControl, ReentrancyGuard {
     function _processFeeTransferOnFeeReceiverPrivate(bool force) private {
         address _feeReceiver = feeReceiver;
         uint256 amount = address(this).balance;
+        if (amount == 0) {
+            return;
+        }
         bool success;
         if (force) {
             (success, ) = _feeReceiver.call{value: amount}("");
+            require(success, "FeesCalculator: Transfer failed");
         } else {
+            require(
+                gasleft() >= ExilonNftLootboxLibrary.MAX_GAS_FOR_ETH_TRANSFER,
+                "FeesCalculator: Not enough gas"
+            );
             (success, ) = _feeReceiver.call{
                 value: amount,
                 gas: ExilonNftLootboxLibrary.MAX_GAS_FOR_ETH_TRANSFER
@@ -128,13 +144,13 @@ contract FeesCalculator is AccessControl, ReentrancyGuard {
         emit FeesCollected(msg.sender, bnbAmount, amount);
     }
 
-    function _getBnbAmount(uint256 amount) private view onlyEOA returns (uint256) {
-        if (amount == 0) {
+    function _getBnbAmount(uint256 usdAmount) private view onlyEOA returns (uint256) {
+        if (usdAmount == 0) {
             return 0;
         }
         address[] memory path = new address[](2);
         path[0] = _weth;
         path[1] = usdToken;
-        return (pancakeRouter.getAmountsIn(amount, path))[0];
+        return (pancakeRouter.getAmountsIn(usdAmount, path))[0];
     }
 }

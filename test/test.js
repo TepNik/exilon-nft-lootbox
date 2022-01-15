@@ -49,6 +49,9 @@ describe("Exilon Nft Lootbox test", function () {
             WETHInst.address
         );
 
+        const AccessFactory = await hre.ethers.getContractFactory("Access");
+        AccessInst = await AccessFactory.deploy();
+
         const FeeReceiverFactory = await hre.ethers.getContractFactory("FeeReceiver");
         feeRecipients = [feeReceiver1.address, feeReceiver2.address];
         feeRecipientAmounts = [1, 2];
@@ -71,13 +74,32 @@ describe("Exilon Nft Lootbox test", function () {
         const ERC1155TestFactorty = await hre.ethers.getContractFactory("ERC1155Test");
         Erc1155Inst = await ERC1155TestFactorty.deploy();
 
-        const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory(
-            "ExilonNftLootboxMain"
-        );
-        ExilonNftLootboxMainInst = await ExilonNftLootboxMainFactory.deploy(
+        const NftMarketplaceFactory = await hre.ethers.getContractFactory("NftMarketplace", {
+            libraries: {
+                ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
+            },
+        });
+        NftMarketplaceInst = await NftMarketplaceFactory.deploy(
             UsdInst.address,
             PancakeRouterInst.address,
-            FeeReceiverInst.address
+            FeeReceiverInst.address,
+            AccessInst.address
+        );
+
+        const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory(
+            "ExilonNftLootboxMain",
+            {
+                libraries: {
+                    ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
+                },
+            }
+        );
+        ExilonNftLootboxMainInst = await ExilonNftLootboxMainFactory.deploy(
+            NftMarketplaceInst.address,
+            UsdInst.address,
+            PancakeRouterInst.address,
+            FeeReceiverInst.address,
+            AccessInst.address
         );
 
         const FundsHolderFactoryFactory = await hre.ethers.getContractFactory(
@@ -100,9 +122,11 @@ describe("Exilon Nft Lootbox test", function () {
         );
         ExilonNftLootboxMasterInst = await ExilonNftLootboxMasterFactory.deploy(
             ExilonInst.address,
+            ExilonInst.address,
             UsdInst.address,
             PancakeRouterInst.address,
             FeeReceiverInst.address,
+            AccessInst.address,
             ExilonNftLootboxMainInst.address,
             FundsHolderFactoryInst.address
         );

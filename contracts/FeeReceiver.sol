@@ -4,10 +4,11 @@ pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract FeeReceiver is AccessControl {
+contract FeeReceiver is AccessControlEnumerable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     address[] public feeRecipients;
@@ -34,11 +35,11 @@ contract FeeReceiver is AccessControl {
         emit MinimalAmountToDistributeChange(minimalAmountToDistribute);
     }
 
-    receive() external payable {
+    receive() external payable nonReentrant {
         _distribute(false);
     }
 
-    function distribute() external {
+    function distribute() external nonReentrant {
         _distribute(true);
     }
 
@@ -49,7 +50,11 @@ contract FeeReceiver is AccessControl {
         _setFeeRecipientParameters(_feeRecipients, _feeRecipientAmounts);
     }
 
-    function withdrawToken(address token, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function withdrawToken(address token, uint256 amount)
+        external
+        nonReentrant
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         uint256 balance;
         if (token == address(0)) {
             balance = address(this).balance;
@@ -126,6 +131,7 @@ contract FeeReceiver is AccessControl {
 
             _totalShares += _feeRecipientAmounts[i];
         }
+        require(_totalShares > 0, "FeeReceiver: Bad shares");
         totalShares = _totalShares;
         feeRecipients = _feeRecipients;
         feeRecipientAmounts = _feeRecipientAmounts;

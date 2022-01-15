@@ -26,10 +26,11 @@ contract ERC721Main is FeesCalculator, ERC721 {
     constructor(
         address _usdToken,
         IPancakeRouter02 _pancakeRouter,
-        address _feeReceiver
+        address _feeReceiver,
+        IAccess _accessControl
     )
         ERC721("Exilon NFT ERC721", "EXL721")
-        FeesCalculator(_usdToken, _pancakeRouter, _feeReceiver)
+        FeesCalculator(_usdToken, _pancakeRouter, _feeReceiver, _accessControl)
     {
         uint256 oneDollar = 10**IERC20Metadata(_usdToken).decimals();
         creatingPrice = oneDollar;
@@ -41,8 +42,7 @@ contract ERC721Main is FeesCalculator, ERC721 {
         _checkFees(creatingPrice);
         _processFeeTransferOnFeeReceiver();
 
-        uint256 __lastId = _lastId;
-        _lastId = __lastId + 1;
+        uint256 __lastId = _lastId++;
 
         _idsToUri[__lastId] = _uri;
 
@@ -51,22 +51,17 @@ contract ERC721Main is FeesCalculator, ERC721 {
         emit MadedNft(msg.sender, __lastId, _uri);
     }
 
+    function setCreatingPrice(uint256 newValue) external onlyAdmin {
+        creatingPrice = newValue;
+
+        emit CreatingPriceChange(newValue);
+    }
+
     function getBnbPriceToCreate() external view returns (uint256) {
         return _getBnbAmountToFront(creatingPrice);
     }
 
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         return _idsToUri[tokenId];
-    }
-
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(AccessControl, ERC721)
-        returns (bool)
-    {
-        return
-            AccessControl.supportsInterface(interfaceId) || ERC721.supportsInterface(interfaceId);
     }
 }

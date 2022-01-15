@@ -27,8 +27,9 @@ contract ERC1155Main is FeesCalculator, ERC1155 {
     constructor(
         address _usdToken,
         IPancakeRouter02 _pancakeRouter,
-        address _feeReceiver
-    ) ERC1155("") FeesCalculator(_usdToken, _pancakeRouter, _feeReceiver) {
+        address _feeReceiver,
+        IAccess _accessControl
+    ) ERC1155("") FeesCalculator(_usdToken, _pancakeRouter, _feeReceiver, _accessControl) {
         uint256 oneDollar = 10**IERC20Metadata(_usdToken).decimals();
         creatingPrice = oneDollar;
 
@@ -49,22 +50,17 @@ contract ERC1155Main is FeesCalculator, ERC1155 {
         emit MadedNft(msg.sender, __lastId, amount, _uri);
     }
 
+    function setCreatingPrice(uint256 newValue) external onlyAdmin {
+        creatingPrice = newValue;
+
+        emit CreatingPriceChange(newValue);
+    }
+
     function getBnbPriceToCreate() external view returns (uint256) {
         return _getBnbAmountToFront(creatingPrice);
     }
 
     function uri(uint256 id) public view virtual override returns (string memory) {
         return _idsToUri[id];
-    }
-
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(AccessControl, ERC1155)
-        returns (bool)
-    {
-        return
-            AccessControl.supportsInterface(interfaceId) || ERC1155.supportsInterface(interfaceId);
     }
 }

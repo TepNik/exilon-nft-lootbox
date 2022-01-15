@@ -9,6 +9,8 @@ import "../ExilonNftLootboxLibrary.sol";
 interface IExilonNftLootboxMain is IERC1155 {
     function init() external;
 
+    function isMerging(uint256 id) external view returns (bool);
+
     function mint(
         address to,
         uint256 id,
@@ -23,4 +25,11 @@ interface IExilonNftLootboxMain is IERC1155 {
     ) external;
 
     function lootboxType(uint256 id) external view returns (ExilonNftLootboxLibrary.LootBoxType);
+
+    function refundToUser(
+        address user,
+        address creator,
+        uint256 receiveUsdAmount,
+        uint256 price
+    ) external;
 }

@@ -6,6 +6,4 @@ interface IFundsHolderFactory {
     function init() external;
 
     function deployNewContract() external returns (address);
-
-    function destroyContract(address fundsHolder) external;
 }

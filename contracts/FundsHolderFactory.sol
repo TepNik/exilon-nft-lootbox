@@ -18,6 +18,8 @@ contract FundsHolderFactory is IFundsHolderFactory {
         _;
     }
 
+    event DeployedNewFundsHolder(FundsHolder fundsHolder);
+
     constructor() {
         FundsHolder _fundsHolderMaster = new FundsHolder();
         _fundsHolderMaster.init(address(this));
@@ -32,10 +34,9 @@ contract FundsHolderFactory is IFundsHolderFactory {
     function deployNewContract() external override onlyMaster returns (address) {
         FundsHolder fundsHolder = FundsHolder(Clones.clone(fundsHolderMaster));
         fundsHolder.init(msg.sender);
-        return address(fundsHolder);
-    }
 
-    function destroyContract(address fundsHolder) external override onlyMaster {
-        FundsHolder(fundsHolder).selfDestruct();
+        emit DeployedNewFundsHolder(fundsHolder);
+
+        return address(fundsHolder);
     }
 }
