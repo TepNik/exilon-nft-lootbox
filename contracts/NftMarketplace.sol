@@ -307,7 +307,7 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
         uint256 price,
         uint256 duration,
         bool zeroPrevious
-    ) external onlyManagerOrAdmin {
+    ) external onlyAdmin {
         require(stateNum < NUMBER_OF_STATES, "NftMarketplace: State number");
         require(price > 0, "NftMarketplace: Wrong price");
 
@@ -342,20 +342,43 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
         return _getBnbAmountToFront(moderationPrice);
     }
 
+    function getBnbPriceForState(uint256 state) external view returns(uint256) {
+        if (state >= NUMBER_OF_STATES) {
+            return 0;
+        }
+        return _getBnbAmountToFront(tokenStateInfo[state].price);
+    }
+
     function activeIdsLength() external view returns (uint256) {
         return _activeIds.length();
     }
 
-    function activeIdsAt(uint256 index) external view returns (uint256) {
-        return _activeIds.at(index);
+    function activeIds(uint256 indexFrom, uint256 indexTo) external view returns (uint256[] memory result) {
+        uint256 fullLength = _activeIds.length();
+        if (indexFrom >= indexTo || indexTo > fullLength) {
+            return result;
+        }
+
+        result = new uint256[](indexTo - indexFrom);
+        for (uint256 i = indexFrom; i < indexTo; ++i) {
+            result[i - indexFrom] = _activeIds.at(i);
+        }
     }
 
     function userToActiveIdsLength(address user) external view returns (uint256) {
         return _userToActiveIds[user].length();
     }
 
-    function userToActiveIdsAt(address user, uint256 index) external view returns (uint256) {
-        return _userToActiveIds[user].at(index);
+    function userToActiveIdsAt(address user, uint256 indexFrom, uint256 indexTo) external view returns (uint256[] memory result) {
+        uint256 fullLength = _userToActiveIds[user].length();
+        if (indexFrom >= indexTo || indexTo > fullLength) {
+            return result;
+        }
+
+        result = new uint256[](indexTo - indexFrom);
+        for (uint256 i = indexFrom; i < indexTo; ++i) {
+            result[i - indexFrom] = _userToActiveIds[user].at(i);
+        }
     }
 
     function moderationRequestsLen() external view returns (uint256) {
