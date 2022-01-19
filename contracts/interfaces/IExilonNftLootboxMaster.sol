@@ -9,7 +9,7 @@ interface IExilonNftLootboxMaster {
 
     function processMerge(uint256 idFrom, uint256 idTo) external;
 
-    function defaultOpeningPrice(uint256 id) external view returns (uint256);
+    function deleteId(uint256 id) external;
 
     function setWinningPlacesToTheCreator(uint256 id) external;
 

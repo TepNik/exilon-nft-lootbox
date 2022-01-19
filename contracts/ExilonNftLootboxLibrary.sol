@@ -475,7 +475,14 @@ library ExilonNftLootboxLibrary {
         IERC20 token,
         uint256 amount,
         bool reequireSuccess
-    ) external returns (bool, uint256) {
+    )
+        external
+        returns (
+            bool,
+            uint256,
+            string memory
+        )
+    {
         uint256 balance;
         if (address(token) == address(0)) {
             balance = address(this).balance;
@@ -489,30 +496,35 @@ library ExilonNftLootboxLibrary {
 
         if (amount > 0) {
             bool success;
+            bytes memory data;
             if (address(token) == address(0)) {
                 require(
                     gasleft() >= MAX_GAS_FOR_ETH_TRANSFER,
                     "ExilonNftLootboxLibrary: Not enough gas"
                 );
-                (success, ) = msg.sender.call{gas: MAX_GAS_FOR_ETH_TRANSFER, value: amount}("");
+                (success, data) = msg.sender.call{gas: MAX_GAS_FOR_ETH_TRANSFER, value: amount}("");
             } else {
                 require(
                     gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
                     "ExilonNftLootboxLibrary: Not enough gas"
                 );
-                (success, ) = address(token).call{gas: MAX_GAS_FOR_TOKEN_TRANSFER}(
+                (success, data) = address(token).call{gas: MAX_GAS_FOR_TOKEN_TRANSFER}(
                     abi.encodeWithSelector(IERC20.transfer.selector, msg.sender, amount)
                 );
             }
 
             if (reequireSuccess) {
                 require(success, "ExilonNftLootboxLibrary: Carefull token transfer failed");
-                return (true, amount);
+                return (true, amount, "");
             } else {
-                return (success, amount);
+                if (success) {
+                    return (success, amount, "");
+                } else {
+                    return (success, amount, _getRevertMsg(data));
+                }
             }
         } else {
-            return (true, 0);
+            return (true, 0, "");
         }
     }
 
@@ -659,9 +671,10 @@ library ExilonNftLootboxLibrary {
         }
         uint256 numberOfZeroElements = revertData.length - 1 - index;
 
-        bytes memory rawErrorMessage = new bytes(revertData.length - 68 - numberOfZeroElements);
+        uint256 errorLength = revertData.length - 68 - numberOfZeroElements;
+        bytes memory rawErrorMessage = new bytes(errorLength);
 
-        for (uint256 i = 0; i < revertData.length - 68 - numberOfZeroElements; ++i) {
+        for (uint256 i = 0; i < errorLength; ++i) {
             rawErrorMessage[i] = revertData[i + 68];
         }
         errorMessage = string(rawErrorMessage);

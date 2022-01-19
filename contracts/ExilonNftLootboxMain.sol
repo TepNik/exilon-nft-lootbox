@@ -11,13 +11,15 @@ import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 import "./pancake-swap/interfaces/IPancakeFactory.sol";
 import "./pancake-swap/interfaces/IPancakePair.sol";
 
-import "./FeesCalculator.sol";
+import "./FeeCalculator.sol";
+import "./FeeSender.sol";
 
 import "./interfaces/IExilonNftLootboxMain.sol";
 import "./interfaces/INftMarketplace.sol";
 import "./interfaces/IExilonNftLootboxMaster.sol";
+import "./interfaces/IPriceHolder.sol";
 
-contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain {
+contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLootboxMain {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
 
@@ -31,6 +33,7 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
     // public
 
     IExilonNftLootboxMaster public masterContract;
+    IPriceHolder public priceHolder;
     INftMarketplace public immutable nftMarketplace;
 
     uint256 public mergePrice;
@@ -38,16 +41,18 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
     mapping(uint256 => ExilonNftLootboxLibrary.LootBoxType) public override lootboxType;
     mapping(uint256 => bool) public isMerging;
 
+    mapping(uint256 => uint256) public override totalSupply;
+
     // private
 
     IPancakeFactory private immutable _pancakeFactory;
 
     mapping(address => EnumerableSet.UintSet) private _idsUsersHold;
     mapping(uint256 => string) private _idsToUri;
-    mapping(uint256 => uint256) private _totalSupply;
 
     MergeRequestInfo[] private _mergeRequestInfo;
     mapping(uint256 => uint256) private _idToMergeRequestIndex;
+    mapping(uint256 => uint256) private _isMergingToCount;
 
     mapping(ExilonNftLootboxLibrary.LootBoxType => EnumerableSet.UintSet) private _lootBoxTypeToIds;
 
@@ -64,10 +69,14 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         uint256 usdAmountCreator
     );
 
-    event MegaLootbox(uint256 id, ExilonNftLootboxLibrary.LootBoxType lootboxType);
+    event MegaLootbox(
+        address indexed manager,
+        uint256 id,
+        ExilonNftLootboxLibrary.LootBoxType lootboxType
+    );
     event MergeRequest(address indexed user, uint256 id, uint256 megaId);
-    event MergeSuccess(uint256 id, uint256 megaId);
-    event MergeFail(uint256 id, uint256 megaId);
+    event MergeSuccess(address indexed manager, uint256 id, uint256 megaId);
+    event MergeFail(address indexed manager, uint256 id, uint256 megaId);
     event MergeCancel(uint256 id, uint256 megaId);
 
     event MergePriceChange(uint256 newValue);
@@ -78,8 +87,14 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         IPancakeRouter02 _pancakeRouter,
         address _feeReceiver,
         IAccess _accessControl
-    ) ERC1155("") FeesCalculator(_usdToken, _pancakeRouter, _feeReceiver, _accessControl) {
+    )
+        ERC1155("")
+        FeeCalculator(_usdToken, _pancakeRouter)
+        FeeSender(_feeReceiver)
+        AccessConnector(_accessControl)
+    {
         nftMarketplace = _nftMarketplace;
+        _nftMarketplace.init();
 
         _pancakeFactory = IPancakeFactory(_pancakeRouter.factory());
 
@@ -88,12 +103,13 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         emit MergePriceChange(_oneUsd);
     }
 
-    function init() external override {
+    function init(address _priceHolder) external override {
         require(
             address(masterContract) == address(0),
             "ExilonNftLootboxMain: Has already initialized"
         );
         masterContract = IExilonNftLootboxMaster(msg.sender);
+        priceHolder = IPriceHolder(_priceHolder);
     }
 
     function requestIdForMerge(uint256 id, uint256 megaId) external payable nonReentrant onlyEOA {
@@ -109,27 +125,28 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         );
         require(isMerging[id] == false, "ExilonNftLootboxMain: Merging");
 
-        uint256 idSupply = _totalSupply[id];
+        uint256 idSupply = totalSupply[id];
+        IExilonNftLootboxMaster _masterContract = masterContract;
         require(
-            idSupply > 0 && balanceOf(address(masterContract), id) == idSupply,
+            idSupply > 0 && balanceOf(address(_masterContract), id) == idSupply,
             "ExilonNftLootboxMain: Can't merge this id"
         );
 
         require(
-            masterContract.idsToCreator(id) == msg.sender,
+            _masterContract.idsToCreator(id) == msg.sender,
             "ExilonNftLootboxMain: Only creator"
         );
 
         require(
             nftMarketplace.isTokenModerated(address(this), id),
-            "ExilonNftLootboxMain: Only mederated"
+            "ExilonNftLootboxMain: Only moderated"
         );
 
         _checkFees(mergePrice);
         _processFeeTransferOnFeeReceiver();
 
         if (megaType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_RESERVE) {
-            uint256 refundPoolAmount = idSupply * masterContract.defaultOpeningPrice(megaId);
+            uint256 refundPoolAmount = idSupply * priceHolder.defaultOpeningPrice(megaId);
 
             require(
                 IERC20(usdToken).allowance(msg.sender, address(this)) >= refundPoolAmount,
@@ -147,16 +164,17 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
                 })
             );
 
-            uint256 prizesLength = masterContract.getRestPrizesLength(id);
-            ExilonNftLootboxLibrary.WinningPlace[] memory prizes = masterContract.getRestPrizesInfo(
-                id,
-                0,
-                prizesLength
-            );
+            uint256 prizesLength = _masterContract.getRestPrizesLength(id);
+            ExilonNftLootboxLibrary.WinningPlace[] memory prizes = _masterContract
+                .getRestPrizesInfo(id, 0, prizesLength);
             (ExilonNftLootboxLibrary.TokenInfo[] memory allTokensInfo, ) = ExilonNftLootboxLibrary
                 .processTokensInfo(prizes);
             for (uint256 i = 0; i < allTokensInfo.length; ++i) {
-                if (allTokensInfo[i].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
+                if (
+                    allTokensInfo[i].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20 &&
+                    allTokensInfo[i].tokenAddress != usdToken &&
+                    allTokensInfo[i].tokenAddress != _weth
+                ) {
                     address pair = _pancakeFactory.getPair(allTokensInfo[i].tokenAddress, _weth);
                     require(pair != address(0), "ExilonNftLootboxMain: No token pair with wbnb");
                     (uint256 reserve1, uint256 reserve2, ) = IPancakePair(pair).getReserves();
@@ -179,6 +197,7 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
 
         _idToMergeRequestIndex[id] = _mergeRequestInfo.length - 1;
         isMerging[id] = true;
+        ++_isMergingToCount[megaId];
 
         emit MergeRequest(msg.sender, id, megaId);
     }
@@ -187,9 +206,17 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         MergeRequestInfo memory mergeRequestInfo = _processMergeInput(id);
 
         require(
-            msg.sender == mergeRequestInfo.requestingAddress,
+            msg.sender == mergeRequestInfo.requestingAddress ||
+                msg.sender == address(nftMarketplace),
             "ExilonNftLootboxMain: Only requester"
         );
+
+        if (
+            --_isMergingToCount[mergeRequestInfo.megaId] == 0 &&
+            totalSupply[mergeRequestInfo.megaId] == 0
+        ) {
+            _deleteId(mergeRequestInfo.megaId);
+        }
 
         if (mergeRequestInfo.refundPoolAmount > 0) {
             IERC20(usdToken).safeTransfer(
@@ -211,7 +238,7 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         if (decision) {
             masterContract.processMerge(mergeRequestInfo.id, mergeRequestInfo.megaId);
 
-            emit MergeSuccess(mergeRequestInfo.id, mergeRequestInfo.megaId);
+            emit MergeSuccess(msg.sender, mergeRequestInfo.id, mergeRequestInfo.megaId);
         } else {
             if (mergeRequestInfo.refundPoolAmount > 0) {
                 IERC20(usdToken).safeTransfer(
@@ -220,7 +247,14 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
                 );
             }
 
-            emit MergeFail(mergeRequestInfo.id, mergeRequestInfo.megaId);
+            emit MergeFail(msg.sender, mergeRequestInfo.id, mergeRequestInfo.megaId);
+        }
+
+        if (
+            --_isMergingToCount[mergeRequestInfo.megaId] == 0 &&
+            totalSupply[mergeRequestInfo.megaId] == 0
+        ) {
+            _deleteId(mergeRequestInfo.megaId);
         }
     }
 
@@ -229,7 +263,13 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         nonReentrant
         onlyManagerOrAdmin
     {
-        require(_totalSupply[id] > 0, "ExilonNftLootboxMain: Id doesn't exist");
+        uint256 _totalSupplyId = totalSupply[id];
+        require(_totalSupplyId > 0, "ExilonNftLootboxMain: Id doesn't exist");
+        require(
+            balanceOf(address(masterContract), id) == _totalSupplyId,
+            "ExilonNftLootboxMain: Not all lootboxes on the market"
+        );
+
         require(
             lootboxType[id] == ExilonNftLootboxLibrary.LootBoxType.DEFAULT,
             "ExilonNftLootboxMain: Only default"
@@ -247,7 +287,7 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
 
         masterContract.setWinningPlacesToTheCreator(id);
 
-        emit MegaLootbox(id, setType);
+        emit MegaLootbox(msg.sender, id, setType);
     }
 
     function setMergePrice(uint256 newValue) external onlyAdmin {
@@ -261,7 +301,7 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
         address creator,
         uint256 receiveUsdAmount,
         uint256 price
-    ) external override nonReentrant onlyMaster {
+    ) external override onlyMaster {
         uint256 balance = IERC20(usdToken).balanceOf(address(this));
 
         uint256 refundUsdAmount;
@@ -296,15 +336,15 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
     ) external nonReentrant onlyMaster {
         _mint(to, id, amount, "");
 
-        uint256 __totalSupply = _totalSupply[id];
-        if (__totalSupply == 0) {
+        uint256 __totalSupply = totalSupply[id];
+        if (__totalSupply == 0 && _isMergingToCount[id] == 0) {
             _lootBoxTypeToIds[ExilonNftLootboxLibrary.LootBoxType.DEFAULT].add(id);
 
             _idsToUri[id] = _uri;
             emit URI(_uri, id);
         }
         __totalSupply += amount;
-        _totalSupply[id] = __totalSupply;
+        totalSupply[id] = __totalSupply;
     }
 
     function burn(
@@ -314,17 +354,12 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
     ) external override nonReentrant onlyMaster {
         _burn(from, id, amount);
 
-        uint256 __totalSupply = _totalSupply[id];
+        uint256 __totalSupply = totalSupply[id];
         __totalSupply -= amount;
-        _totalSupply[id] = __totalSupply;
+        totalSupply[id] = __totalSupply;
 
-        if (__totalSupply == 0) {
-            delete _idsToUri[id];
-            emit URI("", id);
-
-            ExilonNftLootboxLibrary.LootBoxType _type = lootboxType[id];
-            delete lootboxType[id];
-            _lootBoxTypeToIds[_type].remove(id);
+        if (__totalSupply == 0 && _isMergingToCount[id] == 0) {
+            _deleteId(id);
         }
     }
 
@@ -339,13 +374,13 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
     ) external view returns (uint256[] memory result) {
         uint256 len = _idsUsersHold[user].length();
 
-        if (indexFrom >= indexTo || indexFrom > len || indexTo > len) {
-            return new uint256[](0);
+        if (indexFrom >= indexTo || indexTo > len) {
+            return result;
         }
 
         result = new uint256[](indexTo - indexFrom);
         for (uint256 i = indexFrom; i < indexTo; ++i) {
-            result[i] = _idsUsersHold[user].at(i);
+            result[i - indexFrom] = _idsUsersHold[user].at(i);
         }
     }
 
@@ -438,6 +473,17 @@ contract ExilonNftLootboxMain is ERC1155, FeesCalculator, IExilonNftLootboxMain 
             _idToMergeRequestIndex[replacement.id] = requestIndex;
         }
         _mergeRequestInfo.pop();
+    }
+
+    function _deleteId(uint256 id) private {
+        delete _idsToUri[id];
+        emit URI("", id);
+
+        ExilonNftLootboxLibrary.LootBoxType _type = lootboxType[id];
+        delete lootboxType[id];
+        _lootBoxTypeToIds[_type].remove(id);
+
+        masterContract.deleteId(id);
     }
 
     function uri(uint256 id) public view virtual override returns (string memory) {

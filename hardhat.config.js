@@ -94,7 +94,7 @@ module.exports = {
     },
     contractSizer: {
         alphaSort: true,
-        runOnCompile: false,
+        runOnCompile: true,
         disambiguatePaths: false,
     },
     gasReporter: {
@@ -107,7 +107,7 @@ module.exports = {
         path: "./data/abi",
         clear: true,
         flat: true,
-        spacing: 2,
+        spacing: 4,
     },
     spdxLicenseIdentifier: {
         overwrite: true,

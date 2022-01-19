@@ -8,11 +8,13 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
 import "./ExilonNftLootboxLibrary.sol";
-import "./FeesCalculator.sol";
+import "./FeeCalculator.sol";
+import "./FeeSender.sol";
 
 import "./interfaces/INftMarketplace.sol";
+import "./interfaces/IExilonNftLootboxMain.sol";
 
-contract NftMarketplace is FeesCalculator, INftMarketplace {
+contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
     using EnumerableSet for EnumerableSet.UintSet;
 
     struct SellingInfo {
@@ -34,6 +36,8 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
     }
 
     // public
+
+    IExilonNftLootboxMain public exilonNftLootboxMain;
 
     uint256 public moderationPrice;
     uint256 public feePercentage = 1_000; // 10%
@@ -83,9 +87,9 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
     );
 
     event ModerationRequest(address indexed user, ExilonNftLootboxLibrary.TokenInfo tokenInfo);
-    event ModerationPass(ExilonNftLootboxLibrary.TokenInfo tokenInfo);
-    event ModerationFail(ExilonNftLootboxLibrary.TokenInfo tokenInfo);
-    event ModerationCanceled(ExilonNftLootboxLibrary.TokenInfo tokenInfo);
+    event ModerationPass(address indexed manager, ExilonNftLootboxLibrary.TokenInfo tokenInfo);
+    event ModerationFail(address indexed manager, ExilonNftLootboxLibrary.TokenInfo tokenInfo);
+    event ModerationCanceled(address indexed manager, ExilonNftLootboxLibrary.TokenInfo tokenInfo);
 
     event StateInfoChange(
         uint256 stateNum,
@@ -104,11 +108,21 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
         IPancakeRouter02 _pancakeRouter,
         address _feeReceiver,
         IAccess _accessControl
-    ) FeesCalculator(_usdToken, _pancakeRouter, _feeReceiver, _accessControl) {
+    )
+        FeeCalculator(_usdToken, _pancakeRouter)
+        FeeSender(_feeReceiver)
+        AccessConnector(_accessControl)
+    {
         moderationPrice = _oneUsd;
 
         emit FeePercentageChange(feePercentage);
         emit ModerationPriceChange(_oneUsd);
+    }
+
+    function init() external {
+        require(address(exilonNftLootboxMain) == address(0), "NftMarketplace: Already inited");
+
+        exilonNftLootboxMain = IExilonNftLootboxMain(msg.sender);
     }
 
     function sellToken(ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo, uint256 sellPrice)
@@ -240,6 +254,7 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
         bool decision
     ) external onlyManagerOrAdmin {
         require(isOnModeration[tokenAddress][tokenId], "NftMarketplace: Not on moderation");
+        delete isOnModeration[tokenAddress][tokenId];
 
         uint256 moderationRequestsIndex = _moderationRequestId[tokenAddress][tokenId];
         delete _moderationRequestId[tokenAddress][tokenId];
@@ -256,7 +271,6 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
             ] = moderationRequestsIndex;
         }
         _moderationRequests.pop();
-        delete isOnModeration[moderationInfo.tokenInfo.tokenAddress][moderationInfo.tokenInfo.id];
 
         if (decision) {
             isTokenModerated[moderationInfo.tokenInfo.tokenAddress][
@@ -268,9 +282,9 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
                 _moderatedTokens.length -
                 1;
 
-            emit ModerationPass(moderationInfo.tokenInfo);
+            emit ModerationPass(msg.sender, moderationInfo.tokenInfo);
         } else {
-            emit ModerationFail(moderationInfo.tokenInfo);
+            emit ModerationFail(msg.sender, moderationInfo.tokenInfo);
         }
     }
 
@@ -278,6 +292,7 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
         external
         onlyManagerOrAdmin
     {
+        _checkInputData(tokenInfo);
         bool isModerated = isTokenModerated[tokenInfo.tokenAddress][tokenInfo.id];
         if (isModerated) {
             delete isTokenModerated[tokenInfo.tokenAddress][tokenInfo.id];
@@ -298,7 +313,15 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
                 delete _tokenStates[tokenInfo.tokenAddress][tokenInfo.id][i];
             }
 
-            emit ModerationCanceled(tokenInfo);
+            IExilonNftLootboxMain _exilonNftLootboxMain = exilonNftLootboxMain;
+            if (
+                tokenInfo.tokenAddress == address(_exilonNftLootboxMain) &&
+                _exilonNftLootboxMain.isMerging(tokenInfo.id)
+            ) {
+                _exilonNftLootboxMain.cancelMergeRequest(tokenInfo.id);
+            }
+
+            emit ModerationCanceled(msg.sender, tokenInfo);
         }
     }
 
@@ -309,7 +332,10 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
         bool zeroPrevious
     ) external onlyAdmin {
         require(stateNum < NUMBER_OF_STATES, "NftMarketplace: State number");
-        require(price > 0, "NftMarketplace: Wrong price");
+
+        if (price == 0) {
+            require(duration == 0 && zeroPrevious == false, "NftMarketplace: Wrong usage");
+        }
 
         tokenStateInfo[stateNum] = TokenStateInfo({
             price: price,
@@ -342,7 +368,7 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
         return _getBnbAmountToFront(moderationPrice);
     }
 
-    function getBnbPriceForState(uint256 state) external view returns(uint256) {
+    function getBnbPriceForState(uint256 state) external view returns (uint256) {
         if (state >= NUMBER_OF_STATES) {
             return 0;
         }
@@ -353,7 +379,11 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
         return _activeIds.length();
     }
 
-    function activeIds(uint256 indexFrom, uint256 indexTo) external view returns (uint256[] memory result) {
+    function activeIds(uint256 indexFrom, uint256 indexTo)
+        external
+        view
+        returns (uint256[] memory result)
+    {
         uint256 fullLength = _activeIds.length();
         if (indexFrom >= indexTo || indexTo > fullLength) {
             return result;
@@ -369,7 +399,11 @@ contract NftMarketplace is FeesCalculator, INftMarketplace {
         return _userToActiveIds[user].length();
     }
 
-    function userToActiveIdsAt(address user, uint256 indexFrom, uint256 indexTo) external view returns (uint256[] memory result) {
+    function userToActiveIdsAt(
+        address user,
+        uint256 indexFrom,
+        uint256 indexTo
+    ) external view returns (uint256[] memory result) {
         uint256 fullLength = _userToActiveIds[user].length();
         if (indexFrom >= indexTo || indexTo > fullLength) {
             return result;

@@ -8,9 +8,10 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
-import "./FeesCalculator.sol";
+import "./FeeCalculator.sol";
+import "./FeeSender.sol";
 
-contract ERC1155Main is FeesCalculator, ERC1155 {
+contract ERC1155Main is FeeCalculator, FeeSender, ERC1155 {
     // public
 
     uint256 public creatingPrice;
@@ -29,7 +30,12 @@ contract ERC1155Main is FeesCalculator, ERC1155 {
         IPancakeRouter02 _pancakeRouter,
         address _feeReceiver,
         IAccess _accessControl
-    ) ERC1155("") FeesCalculator(_usdToken, _pancakeRouter, _feeReceiver, _accessControl) {
+    )
+        ERC1155("")
+        FeeCalculator(_usdToken, _pancakeRouter)
+        FeeSender(_feeReceiver)
+        AccessConnector(_accessControl)
+    {
         uint256 oneDollar = 10**IERC20Metadata(_usdToken).decimals();
         creatingPrice = oneDollar;
 
