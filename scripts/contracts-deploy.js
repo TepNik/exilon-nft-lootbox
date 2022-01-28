@@ -88,8 +88,8 @@ async function main() {
     const PriceHolderFactory = await hre.ethers.getContractFactory("PriceHolder");
     console.log("Deploying PriceHolder...");
     const PriceHolderInst = await PriceHolderFactory.deploy(
-        UsdInst.address,
-        PancakeRouterInst.address,
+        usdAddress,
+        dexRouterAddress,
         AccessInst.address,
         ExilonNftLootboxMainInst.address
     );
@@ -112,7 +112,7 @@ async function main() {
         AccessInst.address,
         ExilonNftLootboxMainInst.address,
         FundsHolderFactoryInst.address,
-        PriceHolderInst.address
+        PriceHolderInst.address,
     ];
     console.log("Deploying ExilonNftLootboxMaster...");
     const ExilonNftLootboxMasterInst = await ExilonNftLootboxMasterFactory.deploy(...arguments);

@@ -16,9 +16,9 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
     IExilonNftLootboxMaster public exilonNftLootboxMaster;
 
     // Amount in USD for creating lootbox
-    uint256 public creatingPrice;
+    uint256 public override creatingPrice;
     // Minimal amount in USD for openning price
-    uint256 public minimumOpeningPrice;
+    uint256 public override minimumOpeningPrice;
     // Connects id with it's openning price
     mapping(uint256 => uint256) public override defaultOpeningPrice;
     // Percentage from openning price that the creators will get (100% - 10_000)
@@ -60,9 +60,12 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
         IExilonNftLootboxMain _exilonNftLootboxMain
     ) FeeCalculator(_usdToken, _pancakeRouter) AccessConnector(_accessControl) {
         exilonNftLootboxMain = _exilonNftLootboxMain;
+
+        creatingPrice = _oneUsd;
+        minimumOpeningPrice = _oneUsd;
     }
 
-    function init() external {
+    function init() external override {
         require(address(exilonNftLootboxMaster) == address(0), "PriceHolder: Only once");
 
         exilonNftLootboxMaster = IExilonNftLootboxMaster(msg.sender);
@@ -79,8 +82,12 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
         uint256 _minimumOpeningPrice,
         uint256 _creatorPercentage
     ) external onlyAdmin {
-        require(_creatorPercentage <= 10_000, "ExilonNftLootboxMaster: Too big percentage");
-        require(minimumOpeningPrice > 0, "ExilonNftLootboxMaster: Min price");
+        require(
+            _creatorPercentage >= 5_000 && _creatorPercentage <= 10_000,
+            "ExilonNftLootboxMaster: Too big percentage"
+        );
+        require(_minimumOpeningPrice > 0, "ExilonNftLootboxMaster: Min price");
+        require(_creatingPrice > 0, "ExilonNftLootboxMaster: Creating price");
 
         creatingPrice = _creatingPrice;
         minimumOpeningPrice = _minimumOpeningPrice;
@@ -135,9 +142,10 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
         address user,
         uint256 id,
         ExilonNftLootboxLibrary.LootBoxType boxType,
+        address boxCreator,
         uint256 amount
-    ) external onlyMaster returns (uint256 newPrice) {
-        newPrice = _calculatePrice(user, id, boxType, amount);
+    ) external override onlyMaster returns (uint256 newPrice) {
+        newPrice = _calculatePrice(user, id, boxType, boxCreator, amount);
         if (boxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT) {
             _lastPurchase[id][user].price = newPrice / amount;
             _lastPurchase[id][user].timestamp = block.timestamp;
@@ -149,13 +157,21 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
         uint256 id,
         uint256 amount
     ) public view override returns (uint256) {
-        return _calculatePrice(user, id, exilonNftLootboxMain.lootboxType(id), amount);
+        return
+            _calculatePrice(
+                user,
+                id,
+                exilonNftLootboxMain.lootboxType(id),
+                exilonNftLootboxMaster.idsToCreator(id),
+                amount
+            );
     }
 
     function _calculatePrice(
         address user,
         uint256 id,
         ExilonNftLootboxLibrary.LootBoxType boxType,
+        address boxCreator,
         uint256 amount
     ) private view returns (uint256) {
         uint256 minPrice = defaultOpeningPrice[id];
@@ -179,7 +195,11 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
                 return priceNow * amount;
             }
         } else {
-            return minPrice * amount;
+            if (user == boxCreator) {
+                return 0;
+            } else {
+                return minPrice * amount;
+            }
         }
     }
 

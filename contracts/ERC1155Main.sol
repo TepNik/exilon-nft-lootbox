@@ -49,9 +49,10 @@ contract ERC1155Main is FeeCalculator, FeeSender, ERC1155 {
         uint256 __lastId = _lastId;
         _lastId = __lastId + 1;
 
-        _idsToUri[__lastId] = _uri;
-
         _mint(msg.sender, __lastId, amount, "");
+
+        _idsToUri[__lastId] = _uri;
+        emit URI(_uri, __lastId);
 
         emit MadedNft(msg.sender, __lastId, amount, _uri);
     }

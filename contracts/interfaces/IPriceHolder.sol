@@ -21,6 +21,7 @@ interface IPriceHolder {
         address user,
         uint256 id,
         ExilonNftLootboxLibrary.LootBoxType boxType,
+        address boxCreator,
         uint256 amount
     ) external returns (uint256);
 

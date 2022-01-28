@@ -15,14 +15,14 @@ contract FeeReceiver is AccessConnector {
     address[] public feeRecipients;
     uint256[] public feeRecipientAmounts;
 
-    uint256 private _totalShares;
+    uint256 public totalShares;
 
     uint256 public minimalAmountToDistribute = 1 ether;
 
     event FeeRecipientsChange(
         address[] feeRecipients,
         uint256[] feeRecipientAmounts,
-        uint256 _totalShares
+        uint256 totalShares
     );
     event Distribution(address[] feeRecipients, uint256[] amounts);
 
@@ -89,12 +89,12 @@ contract FeeReceiver is AccessConnector {
 
         address[] memory _feeRecipients = feeRecipients;
         uint256[] memory _feeRecipientAmounts = feeRecipientAmounts;
-        uint256 __totalShares = _totalShares;
+        uint256 _totalShares = totalShares;
         uint256 restAmount = amount;
         for (uint256 i = 0; i < _feeRecipients.length; ++i) {
             uint256 amountNow;
             if (i < _feeRecipients.length - 1) {
-                amountNow = (amount * _feeRecipientAmounts[i]) / __totalShares;
+                amountNow = (amount * _feeRecipientAmounts[i]) / _totalShares;
                 restAmount -= amountNow;
             } else {
                 amountNow = restAmount;
@@ -123,18 +123,18 @@ contract FeeReceiver is AccessConnector {
             "FeeReceiver: Bad length"
         );
 
-        uint256 __totalShares;
+        uint256 _totalShares;
         for (uint256 i = 0; i < _feeRecipients.length; ++i) {
             require(_feeRecipientAmounts[i] > 0, "FeeReceiver: Bad amounts");
             require(_feeRecipients[i].code.length == 0, "FeeReceiver: Not allowed contracts");
 
-            __totalShares += _feeRecipientAmounts[i];
+            _totalShares += _feeRecipientAmounts[i];
         }
-        require(__totalShares > 0, "FeeReceiver: Bad shares");
-        _totalShares = __totalShares;
+        require(_totalShares > 0, "FeeReceiver: Bad shares");
+        totalShares = _totalShares;
         feeRecipients = _feeRecipients;
         feeRecipientAmounts = _feeRecipientAmounts;
 
-        emit FeeRecipientsChange(_feeRecipients, _feeRecipientAmounts, __totalShares);
+        emit FeeRecipientsChange(_feeRecipients, _feeRecipientAmounts, _totalShares);
     }
 }

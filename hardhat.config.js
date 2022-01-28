@@ -83,7 +83,7 @@ module.exports = {
                 settings: {
                     optimizer: {
                         enabled: true,
-                        runs: 200,
+                        runs: 500,
                     },
                 },
             },
@@ -94,7 +94,7 @@ module.exports = {
     },
     contractSizer: {
         alphaSort: true,
-        runOnCompile: true,
+        runOnCompile: false,
         disambiguatePaths: false,
     },
     gasReporter: {
@@ -108,6 +108,7 @@ module.exports = {
         clear: true,
         flat: true,
         spacing: 4,
+        runOnCompile: true,
     },
     spdxLicenseIdentifier: {
         overwrite: true,

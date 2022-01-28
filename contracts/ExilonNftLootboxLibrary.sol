@@ -205,10 +205,8 @@ library ExilonNftLootboxLibrary {
         uint256 idFrom;
         uint256 idTo;
         address tokenAddress;
-        TokenType tokenType;
         uint256 balanceBefore;
         address fundsHolderTo;
-        address processingTokenAddress;
         ExilonNftLootboxLibrary.WinningPlace[] winningPlacesFrom;
     }
 
@@ -217,36 +215,30 @@ library ExilonNftLootboxLibrary {
         mapping(uint256 => mapping(address => uint256)) storage totalSharesOfERC20,
         mapping(uint256 => WinningPlace[]) storage _prizes
     ) external {
-        if (input.tokenType == TokenType.ERC20) {
-            uint256 totalSharesTo = totalSharesOfERC20[input.idTo][input.tokenAddress];
-            uint256 totalSharesFrom = totalSharesOfERC20[input.idFrom][input.tokenAddress];
-            if (totalSharesTo == 0) {
-                totalSharesOfERC20[input.idTo][input.tokenAddress] = totalSharesFrom;
-            } else {
-                uint256 balanceAfter = IERC20(input.tokenAddress).balanceOf(input.fundsHolderTo);
+        uint256 totalSharesTo = totalSharesOfERC20[input.idTo][input.tokenAddress];
+        uint256 totalSharesFrom = totalSharesOfERC20[input.idFrom][input.tokenAddress];
+        if (totalSharesTo == 0) {
+            totalSharesOfERC20[input.idTo][input.tokenAddress] = totalSharesFrom;
+        } else {
+            uint256 balanceAfter = IERC20(input.tokenAddress).balanceOf(input.fundsHolderTo);
 
-                require(
-                    balanceAfter > input.balanceBefore,
-                    "ExilonNftLootboxMaster: Merge balance error"
-                );
-                uint256 newSharesAmount = (balanceAfter * totalSharesTo) /
-                    input.balanceBefore -
-                    totalSharesTo;
-                totalSharesOfERC20[input.idTo][input.tokenAddress] =
-                    totalSharesTo +
-                    newSharesAmount;
+            require(
+                balanceAfter > input.balanceBefore,
+                "ExilonNftLootboxMaster: Merge balance error"
+            );
+            uint256 newSharesAmount = (balanceAfter * totalSharesTo) /
+                input.balanceBefore -
+                totalSharesTo;
+            totalSharesOfERC20[input.idTo][input.tokenAddress] = totalSharesTo + newSharesAmount;
 
-                for (uint256 i = 0; i < input.winningPlacesFrom.length; ++i) {
-                    for (uint256 j = 0; j < input.winningPlacesFrom[j].prizesInfo.length; ++j) {
-                        if (
-                            input.winningPlacesFrom[i].prizesInfo[j].tokenAddress ==
-                            input.processingTokenAddress
-                        ) {
-                            _prizes[input.idFrom][i].prizesInfo[j].amount =
-                                (input.winningPlacesFrom[i].prizesInfo[j].amount *
-                                    newSharesAmount) /
-                                totalSharesFrom;
-                        }
+            for (uint256 i = 0; i < input.winningPlacesFrom.length; ++i) {
+                for (uint256 j = 0; j < input.winningPlacesFrom[i].prizesInfo.length; ++j) {
+                    if (
+                        input.winningPlacesFrom[i].prizesInfo[j].tokenAddress == input.tokenAddress
+                    ) {
+                        _prizes[input.idFrom][i].prizesInfo[j].amount =
+                            (input.winningPlacesFrom[i].prizesInfo[j].amount * newSharesAmount) /
+                            totalSharesFrom;
                     }
                 }
             }

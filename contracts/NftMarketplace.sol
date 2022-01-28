@@ -4,6 +4,8 @@ pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
@@ -14,7 +16,7 @@ import "./FeeSender.sol";
 import "./interfaces/INftMarketplace.sol";
 import "./interfaces/IExilonNftLootboxMain.sol";
 
-contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
+contract NftMarketplace is FeeCalculator, FeeSender, ERC721Holder, ERC1155Holder, INftMarketplace {
     using EnumerableSet for EnumerableSet.UintSet;
 
     struct SellingInfo {
@@ -68,6 +70,7 @@ contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
     event SellCreated(
         address indexed user,
         uint256 sellPrice,
+        uint256 sellPriceBnb,
         uint256 id,
         ExilonNftLootboxLibrary.TokenInfo tokenInfo
     );
@@ -87,8 +90,16 @@ contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
     );
 
     event ModerationRequest(address indexed user, ExilonNftLootboxLibrary.TokenInfo tokenInfo);
-    event ModerationPass(address indexed manager, ExilonNftLootboxLibrary.TokenInfo tokenInfo);
-    event ModerationFail(address indexed manager, ExilonNftLootboxLibrary.TokenInfo tokenInfo);
+    event ModerationPass(
+        address indexed manager,
+        address indexed requester,
+        ExilonNftLootboxLibrary.TokenInfo tokenInfo
+    );
+    event ModerationFail(
+        address indexed manager,
+        address indexed requester,
+        ExilonNftLootboxLibrary.TokenInfo tokenInfo
+    );
     event ModerationCanceled(address indexed manager, ExilonNftLootboxLibrary.TokenInfo tokenInfo);
 
     event StateInfoChange(
@@ -130,7 +141,7 @@ contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
         nonReentrant
         onlyEOA
     {
-        _checkInputData(tokenInfo);
+        _checkInputData(tokenInfo, false);
         require(sellPrice > 0, "NftMarketplace: Wrong price");
 
         ExilonNftLootboxLibrary.withdrawToken(tokenInfo, msg.sender, address(this), true);
@@ -147,27 +158,38 @@ contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
 
         _activeIds.add(__lastId);
 
-        emit SellCreated(msg.sender, sellPrice, __lastId, tokenInfo);
+        emit SellCreated(msg.sender, sellPrice, _getBnbAmount(sellPrice), __lastId, tokenInfo);
     }
 
-    function buy(uint256 id) external payable nonReentrant onlyEOA {
+    function buy(uint256 id, uint256 amount) external payable nonReentrant onlyEOA {
         require(_activeIds.contains(id), "NftMarketplace: Not active id");
 
         SellingInfo memory sellingInfo = idToSellingInfo[id];
 
-        uint256 bnbValue = _checkFees(sellingInfo.price);
+        if (sellingInfo.tokenInfo.tokenType == ExilonNftLootboxLibrary.TokenType.ERC721) {
+            require(amount == 0, "NftMarketplace: ERC721 amount");
+        } else {
+            require(
+                amount > 0 && amount <= sellingInfo.tokenInfo.amount,
+                "NftMarketplace: ERC1155 amount"
+            );
+        }
+
+        uint256 bnbValue = _checkFees(sellingInfo.price * amount);
         _processFeeTransfer(bnbValue, sellingInfo.seller);
 
-        ExilonNftLootboxLibrary.withdrawToken(
-            sellingInfo.tokenInfo,
-            address(this),
-            msg.sender,
-            true
-        );
+        ExilonNftLootboxLibrary.TokenInfo memory withdrawInfo = sellingInfo.tokenInfo;
+        withdrawInfo.amount = amount;
+        ExilonNftLootboxLibrary.withdrawToken(withdrawInfo, address(this), msg.sender, true);
 
-        _activeIds.remove(id);
-        _userToActiveIds[sellingInfo.seller].remove(id);
-        delete idToSellingInfo[id];
+        sellingInfo.tokenInfo.amount -= amount;
+        if (sellingInfo.tokenInfo.amount == 0) {
+            _activeIds.remove(id);
+            _userToActiveIds[sellingInfo.seller].remove(id);
+            delete idToSellingInfo[id];
+        } else {
+            idToSellingInfo[id].tokenInfo.amount = sellingInfo.tokenInfo.amount;
+        }
 
         emit SellMaded(
             sellingInfo.seller,
@@ -207,7 +229,7 @@ contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
         nonReentrant
         onlyEOA
     {
-        _checkInputData(tokenInfo);
+        _checkInputData(tokenInfo, true);
         require(
             isTokenModerated[tokenInfo.tokenAddress][tokenInfo.id] == false,
             "NftMarketplace: Moderated"
@@ -236,7 +258,7 @@ contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
         onlyEOA
     {
         require(stateNum < NUMBER_OF_STATES, "NftMarketplace: State number");
-        _checkInputData(tokenInfo);
+        _checkInputData(tokenInfo, true);
 
         uint256 price = tokenStateInfo[stateNum].price;
         require(price > 0, "NftMarketplace: Not opened state");
@@ -282,9 +304,17 @@ contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
                 _moderatedTokens.length -
                 1;
 
-            emit ModerationPass(msg.sender, moderationInfo.tokenInfo);
+            emit ModerationPass(
+                msg.sender,
+                moderationInfo.requestingAddress,
+                moderationInfo.tokenInfo
+            );
         } else {
-            emit ModerationFail(msg.sender, moderationInfo.tokenInfo);
+            emit ModerationFail(
+                msg.sender,
+                moderationInfo.requestingAddress,
+                moderationInfo.tokenInfo
+            );
         }
     }
 
@@ -292,7 +322,7 @@ contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
         external
         onlyManagerOrAdmin
     {
-        _checkInputData(tokenInfo);
+        _checkInputData(tokenInfo, true);
         bool isModerated = isTokenModerated[tokenInfo.tokenAddress][tokenInfo.id];
         if (isModerated) {
             delete isTokenModerated[tokenInfo.tokenAddress][tokenInfo.id];
@@ -360,8 +390,12 @@ contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
         emit ModerationPriceChange(newValue);
     }
 
-    function getBnbPriceToBuy(uint256 id) external view returns (uint256) {
-        return _getBnbAmountToFront(idToSellingInfo[id].price);
+    function getBnbPriceToBuy(uint256 id, uint256 amount) external view returns (uint256) {
+        if (idToSellingInfo[id].tokenInfo.tokenType == ExilonNftLootboxLibrary.TokenType.ERC721) {
+            return _getBnbAmountToFront(idToSellingInfo[id].price);
+        } else {
+            return _getBnbAmountToFront(idToSellingInfo[id].price * amount);
+        }
     }
 
     function getBnbPriceForModeration() external view returns (uint256) {
@@ -491,23 +525,31 @@ contract NftMarketplace is FeeCalculator, FeeSender, INftMarketplace {
         _processFeeTransferOnFeeReceiver();
     }
 
-    function _checkInputData(ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo) private view {
+    function _checkInputData(
+        ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo,
+        bool isZeroAmount
+    ) private view {
         require(
             tokenInfo.tokenType == ExilonNftLootboxLibrary.TokenType.ERC721 ||
                 tokenInfo.tokenType == ExilonNftLootboxLibrary.TokenType.ERC1155,
             "NftMarketplace: Wrong token type"
         );
-        require(tokenInfo.amount == 0, "NftMarketplace: Wrong amount");
         if (tokenInfo.tokenType == ExilonNftLootboxLibrary.TokenType.ERC721) {
             require(
                 IERC165(tokenInfo.tokenAddress).supportsInterface(bytes4(0x80ac58cd)),
                 "NftMarketplace: ERC721 type"
             );
+            require(tokenInfo.amount == 0, "NftMarketplace: ERC721 amount");
         } else {
             require(
                 IERC165(tokenInfo.tokenAddress).supportsInterface(bytes4(0xd9b67a26)),
                 "NftMarketplace: ERC1155 type"
             );
+            if (isZeroAmount) {
+                require(tokenInfo.amount == 0, "NftMarketplace: Not zero amount");
+            } else {
+                require(tokenInfo.amount > 0, "NftMarketplace: Zero amount");
+            }
         }
     }
 }

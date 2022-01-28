@@ -76,11 +76,18 @@ contract ExilonNftLootboxMaster is
 
     event LootboxMaded(address indexed maker, uint256 id, uint256 amount);
     event WithdrawLootbox(address indexed maker, uint256 id, uint256 amount);
+    event CreatorWithdraw(
+        address indexed creator,
+        address indexed user,
+        uint256 id,
+        uint256 amountOfLootboxes
+    );
     event IdDeleted(uint256 id, address indexed fundsHolder);
     event SuccessfullyWithdrawnTokens(
         address indexed user,
         ExilonNftLootboxLibrary.TokenInfo[] tokens,
-        address[] creators
+        address[] creators,
+        uint256[] creatorsAmounts
     );
     event TransferFeeToCreator(address indexed creator, uint256 bnbAmount);
     event MergeMaded(uint256 idFrom, uint256 idTo);
@@ -93,7 +100,13 @@ contract ExilonNftLootboxMaster is
 
     event ChangeAirdropParams(address airdropToken, uint256 airdropAmount);
 
-    event BadAirdropTransfer(address indexed to, uint256 amount, string transferError);
+    event GoodAirdropTransfer(address indexed token, address indexed to, uint256 amount);
+    event BadAirdropTransfer(
+        address indexed token,
+        address indexed to,
+        uint256 amount,
+        string transferError
+    );
 
     constructor(
         IERC20 _exilon,
@@ -238,20 +251,20 @@ contract ExilonNftLootboxMaster is
                 "ExilonNftLootboxMaster: Merge transfer failed"
             );
 
-            ExilonNftLootboxLibrary.processMergeInfo(
-                ExilonNftLootboxLibrary.processMergeInfoInputStruct({
-                    idFrom: idFrom,
-                    idTo: idTo,
-                    tokenAddress: stack.allTokensInfoFrom[i].tokenAddress,
-                    tokenType: stack.allTokensInfoFrom[i].tokenType,
-                    balanceBefore: balanceBefore,
-                    fundsHolderTo: stack.fundsHolderTo,
-                    processingTokenAddress: stack.allTokensInfoFrom[i].tokenAddress,
-                    winningPlacesFrom: stack.winningPlacesFrom
-                }),
-                _totalSharesOfERC20,
-                _prizes
-            );
+            if (stack.allTokensInfoFrom[i].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
+                ExilonNftLootboxLibrary.processMergeInfo(
+                    ExilonNftLootboxLibrary.processMergeInfoInputStruct({
+                        idFrom: idFrom,
+                        idTo: idTo,
+                        tokenAddress: stack.allTokensInfoFrom[i].tokenAddress,
+                        balanceBefore: balanceBefore,
+                        fundsHolderTo: stack.fundsHolderTo,
+                        winningPlacesFrom: stack.winningPlacesFrom
+                    }),
+                    _totalSharesOfERC20,
+                    _prizes
+                );
+            }
         }
 
         ExilonNftLootboxLibrary.mergeWinningPrizeInfo(
@@ -268,6 +281,14 @@ contract ExilonNftLootboxMaster is
         exilonNftLootboxMain.mint(address(this), idTo, stack.totalLootboxes, "");
 
         emit MergeMaded(idFrom, idTo);
+    }
+
+    function removeWinningPlace(
+        uint256 id,
+        uint256 index,
+        address owner
+    ) external onlyManagerOrAdmin {
+        // TODO
     }
 
     function deleteId(uint256 id) external onlyLootboxMain {
@@ -402,6 +423,8 @@ contract ExilonNftLootboxMaster is
         uint256 powParameter;
         uint256 usdReceive;
         address creator;
+        address[] creators;
+        uint256[] creatorsAmounts;
     }
 
     function _withdrawPrize(
@@ -417,16 +440,16 @@ contract ExilonNftLootboxMaster is
         stack.boxType = exilonNftLootboxMain.lootboxType(id);
 
         stack.creator = idsToCreator[id];
-        if (
-            msg.sender != stack.creator ||
-            stack.boxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT
-        ) {
-            uint256 usdPrice = priceHolder.makePurchase(msg.sender, id, stack.boxType, amount);
-
+        {
+            uint256 usdPrice = priceHolder.makePurchase(
+                msg.sender,
+                id,
+                stack.boxType,
+                stack.creator,
+                amount
+            );
             uint256 bnbAmount = _checkFees(usdPrice);
             _processFeeTransferOpening(id, bnbAmount);
-        } else {
-            require(msg.value == 0, "ExilonNftLootboxMaster: For creator open is free");
         }
 
         _airdropToOpenner();
@@ -440,13 +463,17 @@ contract ExilonNftLootboxMaster is
                 ExilonNftLootboxLibrary.MAX_TOKENS_IN_LOOTBOX
             );
 
-        address[] memory creators;
         if (stack.boxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT) {
-            creators = new address[](amount);
+            stack.creators = new address[](amount);
+            stack.creatorsAmounts = new uint256[](amount);
         } else {
-            creators = new address[](1);
-            creators[0] = idsToCreator[id];
+            stack.creators = new address[](1);
+            stack.creatorsAmounts = new uint256[](1);
+            stack.creators[0] = idsToCreator[id];
+            stack.creatorsAmounts[0] = amount;
         }
+
+        // TODO: Withdraw all tokens if amount==totalSupply
 
         stack.minRandomPercentage = minRandomPercentage;
         stack.maxRandomPercentage = maxRandomPercentage;
@@ -484,9 +511,16 @@ contract ExilonNftLootboxMaster is
             address creator;
             if (stack.boxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT) {
                 creator = _winningPlaceCreator[id][winningIndex];
-                numberOfCreatorsOpenedLootboxes[creator][id] += 1;
-                creators[stack.lastIndexCreators] = creator;
-                ++stack.lastIndexCreators;
+
+                for (uint256 j = 0; j < stack.lastIndexCreators; ++j) {
+                    if (stack.creators[j] == creator) {
+                        ++stack.creatorsAmounts[j];
+                    } else if (j == stack.lastIndexCreators - 1) {
+                        stack.creators[stack.lastIndexCreators] = creator;
+                        stack.creatorsAmounts[stack.lastIndexCreators] = 1;
+                        ++stack.lastIndexCreators;
+                    }
+                }
             } else {
                 creator = stack.creator;
             }
@@ -520,9 +554,26 @@ contract ExilonNftLootboxMaster is
 
         if (stack.boxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT) {
             uint256 numberToDecrease = amount - stack.lastIndexCreators;
-            assembly {
-                mstore(creators, sub(mload(creators), numberToDecrease))
+            {
+                address[] memory temp = stack.creators;
+                assembly {
+                    mstore(temp, sub(mload(temp), numberToDecrease))
+                }
+                stack.creators = temp;
             }
+            {
+                uint256[] memory temp = stack.creatorsAmounts;
+                assembly {
+                    mstore(temp, sub(mload(temp), numberToDecrease))
+                }
+                stack.creatorsAmounts = temp;
+            }
+        }
+
+        for (uint256 i = 0; i < stack.creators.length; ++i) {
+            numberOfCreatorsOpenedLootboxes[stack.creators[i]][id] += stack.creatorsAmounts[i];
+
+            emit CreatorWithdraw(stack.creators[i], msg.sender, id, stack.creatorsAmounts[i]);
         }
 
         exilonNftLootboxMain.burn(redeemer, id, amount);
@@ -530,7 +581,12 @@ contract ExilonNftLootboxMaster is
         _nonce = stack.nonce;
 
         emit WithdrawLootbox(msg.sender, id, amount);
-        emit SuccessfullyWithdrawnTokens(msg.sender, successWithdrawTokens, creators);
+        emit SuccessfullyWithdrawnTokens(
+            msg.sender,
+            successWithdrawTokens,
+            stack.creators,
+            stack.creatorsAmounts
+        );
     }
 
     function _processFeeTransferOpening(uint256 id, uint256 bnbAmount) private {
@@ -548,11 +604,14 @@ contract ExilonNftLootboxMaster is
     }
 
     function _airdropToOpenner() private {
+        IERC20 _airdropToken = airdropToken;
         (bool success, uint256 amount, string memory transferError) = ExilonNftLootboxLibrary
-            .sendTokenCarefully(airdropToken, amountOfAirdropTokenToOpenner, false);
+            .sendTokenCarefully(_airdropToken, amountOfAirdropTokenToOpenner, false);
 
         if (!success) {
-            emit BadAirdropTransfer(msg.sender, amount, transferError);
+            emit BadAirdropTransfer(address(_airdropToken), msg.sender, amount, transferError);
+        } else {
+            emit GoodAirdropTransfer(address(_airdropToken), msg.sender, amount);
         }
     }
 

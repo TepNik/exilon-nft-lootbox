@@ -71,13 +71,24 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
 
     event MegaLootbox(
         address indexed manager,
+        address indexed requestingAddress,
         uint256 id,
         ExilonNftLootboxLibrary.LootBoxType lootboxType
     );
     event MergeRequest(address indexed user, uint256 id, uint256 megaId);
-    event MergeSuccess(address indexed manager, uint256 id, uint256 megaId);
-    event MergeFail(address indexed manager, uint256 id, uint256 megaId);
-    event MergeCancel(uint256 id, uint256 megaId);
+    event MergeSuccess(
+        address indexed manager,
+        address indexed requestingAddress,
+        uint256 id,
+        uint256 megaId
+    );
+    event MergeFail(
+        address indexed manager,
+        address indexed requestingAddress,
+        uint256 id,
+        uint256 megaId
+    );
+    event MergeCancel(address indexed requestingAddress, uint256 id, uint256 megaId);
 
     event MergePriceChange(uint256 newValue);
 
@@ -225,7 +236,11 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
             );
         }
 
-        emit MergeCancel(mergeRequestInfo.id, mergeRequestInfo.megaId);
+        emit MergeCancel(
+            mergeRequestInfo.requestingAddress,
+            mergeRequestInfo.id,
+            mergeRequestInfo.megaId
+        );
     }
 
     function processMergeRequest(uint256 id, bool decision)
@@ -238,7 +253,12 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
         if (decision) {
             masterContract.processMerge(mergeRequestInfo.id, mergeRequestInfo.megaId);
 
-            emit MergeSuccess(msg.sender, mergeRequestInfo.id, mergeRequestInfo.megaId);
+            emit MergeSuccess(
+                msg.sender,
+                mergeRequestInfo.requestingAddress,
+                mergeRequestInfo.id,
+                mergeRequestInfo.megaId
+            );
         } else {
             if (mergeRequestInfo.refundPoolAmount > 0) {
                 IERC20(usdToken).safeTransfer(
@@ -247,7 +267,12 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
                 );
             }
 
-            emit MergeFail(msg.sender, mergeRequestInfo.id, mergeRequestInfo.megaId);
+            emit MergeFail(
+                msg.sender,
+                mergeRequestInfo.requestingAddress,
+                mergeRequestInfo.id,
+                mergeRequestInfo.megaId
+            );
         }
 
         if (
@@ -264,9 +289,10 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
         onlyManagerOrAdmin
     {
         uint256 _totalSupplyId = totalSupply[id];
+        IExilonNftLootboxMaster _masterContract = masterContract;
         require(_totalSupplyId > 0, "ExilonNftLootboxMain: Id doesn't exist");
         require(
-            balanceOf(address(masterContract), id) == _totalSupplyId,
+            balanceOf(address(_masterContract), id) == _totalSupplyId,
             "ExilonNftLootboxMain: Not all lootboxes on the market"
         );
 
@@ -285,9 +311,9 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
 
         lootboxType[id] = setType;
 
-        masterContract.setWinningPlacesToTheCreator(id);
+        _masterContract.setWinningPlacesToTheCreator(id);
 
-        emit MegaLootbox(msg.sender, id, setType);
+        emit MegaLootbox(msg.sender, _masterContract.idsToCreator(id), id, setType);
     }
 
     function setMergePrice(uint256 newValue) external onlyAdmin {
@@ -333,7 +359,7 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
         uint256 id,
         uint256 amount,
         string memory _uri
-    ) external nonReentrant onlyMaster {
+    ) external override onlyMaster {
         _mint(to, id, amount, "");
 
         uint256 __totalSupply = totalSupply[id];
@@ -351,7 +377,7 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
         address from,
         uint256 id,
         uint256 amount
-    ) external override nonReentrant onlyMaster {
+    ) external override onlyMaster {
         _burn(from, id, amount);
 
         uint256 __totalSupply = totalSupply[id];
