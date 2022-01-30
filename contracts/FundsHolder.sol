@@ -32,9 +32,13 @@ contract FundsHolder is ERC1155Holder, ERC721Holder, IFundsHolder {
         external
         override
         onlyMaster
+        returns (bool result)
     {
+        result = true;
         for (uint256 i = 0; i < tokenInfo.length; ++i) {
-            ExilonNftLootboxLibrary.withdrawToken(tokenInfo[i], address(this), to, false);
+            result =
+                result &&
+                ExilonNftLootboxLibrary.withdrawToken(tokenInfo[i], address(this), to, false);
         }
     }
 

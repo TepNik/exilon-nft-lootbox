@@ -311,9 +311,20 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
 
         lootboxType[id] = setType;
 
-        _masterContract.setWinningPlacesToTheCreator(id);
+        address creator = _masterContract.setWinningPlacesToTheCreator(id);
 
-        emit MegaLootbox(msg.sender, _masterContract.idsToCreator(id), id, setType);
+        if (setType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_RESERVE) {
+            uint256 refundPoolAmount = _totalSupplyId * priceHolder.defaultOpeningPrice(id);
+
+            require(
+                IERC20(usdToken).allowance(msg.sender, address(this)) >= refundPoolAmount,
+                "ExilonNftLootboxMain: No enougth allowance for refund"
+            );
+            IERC20(usdToken).safeTransferFrom(msg.sender, address(this), refundPoolAmount);
+            emit RefundFundCollected(msg.sender, refundPoolAmount);
+        }
+
+        emit MegaLootbox(msg.sender, creator, id, setType);
     }
 
     function setMergePrice(uint256 newValue) external onlyAdmin {

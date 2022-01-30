@@ -35,10 +35,9 @@ contract ERC721Main is FeeCalculator, FeeSender, ERC721 {
         FeeSender(_feeReceiver)
         AccessConnector(_accessControl)
     {
-        uint256 oneDollar = 10**IERC20Metadata(_usdToken).decimals();
-        creatingPrice = oneDollar;
+        creatingPrice = _oneUsd;
 
-        emit CreatingPriceChange(oneDollar);
+        emit CreatingPriceChange(_oneUsd);
     }
 
     function makeNft(string memory _uri) external payable nonReentrant onlyEOA {

@@ -9,6 +9,7 @@ async function main() {
     }
 
     const [deployer] = await ethers.getSigners();
+    console.log("Deployer:", deployer.address, "\n");
 
     let exilonAddress;
     let usdAddress;
@@ -28,6 +29,8 @@ async function main() {
     const AccessInst = await AccessFactory.deploy();
     await AccessInst.deployed();
     console.log("Access deployed at", AccessInst.address);
+    let deployTx = await AccessInst.deployTransaction.wait();
+    console.log("Used gas:", deployTx.gasUsed.toString(), "\n");
 
     const FeeReceiverFactory = await hre.ethers.getContractFactory("FeeReceiver");
     let arguments = [config.feeReceivers, config.feeReceiverAmounts, AccessInst.address];
@@ -35,6 +38,8 @@ async function main() {
     const FeeReceiverInst = await FeeReceiverFactory.deploy(...arguments);
     await FeeReceiverInst.deployed();
     console.log("FeeReceiver deployed at", FeeReceiverInst.address);
+    deployTx = await FeeReceiverInst.deployTransaction.wait();
+    console.log("Used gas:", deployTx.gasUsed.toString(), "\n");
 
     const ExilonNftLootboxLibraryFactory = await hre.ethers.getContractFactory(
         "ExilonNftLootboxLibrary"
@@ -43,6 +48,8 @@ async function main() {
     const ExilonNftLootboxLibraryInst = await ExilonNftLootboxLibraryFactory.deploy();
     await ExilonNftLootboxLibraryInst.deployed();
     console.log("ExilonNftLootboxLibrary deployed at", ExilonNftLootboxLibraryInst.address);
+    deployTx = await ExilonNftLootboxLibraryInst.deployTransaction.wait();
+    console.log("Used gas:", deployTx.gasUsed.toString(), "\n");
 
     const NftMarketplaceFactory = await hre.ethers.getContractFactory("NftMarketplace", {
         libraries: {
@@ -54,6 +61,8 @@ async function main() {
     const NftMarketplaceInst = await NftMarketplaceFactory.deploy(...arguments);
     await NftMarketplaceInst.deployed();
     console.log("NftMarketplace deployed at", NftMarketplaceInst.address);
+    deployTx = await NftMarketplaceInst.deployTransaction.wait();
+    console.log("Used gas:", deployTx.gasUsed.toString(), "\n");
 
     const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory(
         "ExilonNftLootboxMain",
@@ -74,6 +83,8 @@ async function main() {
     const ExilonNftLootboxMainInst = await ExilonNftLootboxMainFactory.deploy(...arguments);
     await ExilonNftLootboxMainInst.deployed();
     console.log("ExilonNftLootboxMain deployed at", ExilonNftLootboxMainInst.address);
+    deployTx = await ExilonNftLootboxMainInst.deployTransaction.wait();
+    console.log("Used gas:", deployTx.gasUsed.toString(), "\n");
 
     const FundsHolderFactoryFactory = await hre.ethers.getContractFactory("FundsHolderFactory", {
         libraries: {
@@ -84,16 +95,25 @@ async function main() {
     const FundsHolderFactoryInst = await FundsHolderFactoryFactory.deploy();
     await FundsHolderFactoryInst.deployed();
     console.log("FundsHolderFactory deployed at", FundsHolderFactoryInst.address);
+    deployTx = await FundsHolderFactoryInst.deployTransaction.wait();
+    console.log("Used gas:", deployTx.gasUsed.toString(), "\n");
 
-    const PriceHolderFactory = await hre.ethers.getContractFactory("PriceHolder");
+    const PriceHolderFactory = await hre.ethers.getContractFactory("PriceHolder", {
+        libraries: {
+            ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
+        },
+    });
     console.log("Deploying PriceHolder...");
     const PriceHolderInst = await PriceHolderFactory.deploy(
+        exilonAddress,
         usdAddress,
         dexRouterAddress,
         AccessInst.address,
         ExilonNftLootboxMainInst.address
     );
     console.log("PriceHolder deployed at", PriceHolderInst.address);
+    deployTx = await PriceHolderInst.deployTransaction.wait();
+    console.log("Used gas:", deployTx.gasUsed.toString(), "\n");
 
     const ExilonNftLootboxMasterFactory = await hre.ethers.getContractFactory(
         "ExilonNftLootboxMaster",
@@ -104,7 +124,6 @@ async function main() {
         }
     );
     arguments = [
-        exilonAddress,
         exilonAddress,
         usdAddress,
         dexRouterAddress,
@@ -118,6 +137,8 @@ async function main() {
     const ExilonNftLootboxMasterInst = await ExilonNftLootboxMasterFactory.deploy(...arguments);
     await ExilonNftLootboxMasterInst.deployed();
     console.log("ExilonNftLootboxMaster deployed at", ExilonNftLootboxMasterInst.address);
+    deployTx = await ExilonNftLootboxMasterInst.deployTransaction.wait();
+    console.log("Used gas:", deployTx.gasUsed.toString(), "\n");
 
     const ERC721MainFactory = await hre.ethers.getContractFactory("ERC721Main");
     arguments = [usdAddress, dexRouterAddress, FeeReceiverInst.address, AccessInst.address];
@@ -125,12 +146,16 @@ async function main() {
     const ERC721MainInst = await ERC721MainFactory.deploy(...arguments);
     await ERC721MainInst.deployed();
     console.log("ERC721Main deployed at", ERC721MainInst.address);
+    deployTx = await ERC721MainInst.deployTransaction.wait();
+    console.log("Used gas:", deployTx.gasUsed.toString(), "\n");
 
     const ERC1155MainFactory = await hre.ethers.getContractFactory("ERC1155Main");
     console.log("Deploying ERC1155Main...");
     const ERC1155MainInst = await ERC1155MainFactory.deploy(...arguments);
     await ERC1155MainInst.deployed();
     console.log("ERC1155Main deployed at", ERC1155MainInst.address);
+    deployTx = await ERC1155MainInst.deployTransaction.wait();
+    console.log("Used gas:", deployTx.gasUsed.toString(), "\n");
 }
 
 main()

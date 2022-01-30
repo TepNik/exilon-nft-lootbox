@@ -11,7 +11,7 @@ interface IExilonNftLootboxMaster {
 
     function deleteId(uint256 id) external;
 
-    function setWinningPlacesToTheCreator(uint256 id) external;
+    function setWinningPlacesToTheCreator(uint256 id) external returns (address);
 
     function getRestPrizesLength(uint256 id) external view returns (uint256);
 

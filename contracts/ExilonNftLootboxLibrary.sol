@@ -11,6 +11,8 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
 import "./interfaces/IExilon.sol";
+import "./interfaces/IExilonNftLootboxMain.sol";
+import "./interfaces/IPriceHolder.sol";
 
 library ExilonNftLootboxLibrary {
     using SafeERC20 for IERC20;
@@ -40,8 +42,8 @@ library ExilonNftLootboxLibrary {
     }
 
     uint256 public constant MAX_TOKENS_IN_LOOTBOX = 200;
-    uint256 public constant MAX_GAS_FOR_TOKEN_TRANSFER = 1_500_000;
-    uint256 public constant MAX_GAS_FOR_ETH_TRANSFER = 500_000;
+    uint256 public constant MAX_GAS_FOR_TOKEN_TRANSFER = 1_200_000;
+    uint256 public constant MAX_GAS_FOR_ETH_TRANSFER = 600_000;
 
     event BadERC20TokenWithdraw(
         address indexed token,
@@ -304,8 +306,8 @@ library ExilonNftLootboxLibrary {
             ) % upperLimit;
     }
 
-    function processTokensInfo(WinningPlace[] calldata winningPlaces)
-        external
+    function processTokensInfo(WinningPlace[] memory winningPlaces)
+        public
         view
         returns (TokenInfo[] memory allTokensInfo, uint256 amountOfLootBoxes)
     {
@@ -405,6 +407,64 @@ library ExilonNftLootboxLibrary {
         require(winningIndex != type(uint256).max, "ExilonNftLootboxLibrary: Random generator");
     }
 
+    struct refundWinningPlaceToOwnerInput {
+        uint256 id;
+        uint256 index;
+        address creator;
+        WinningPlace winningPlace;
+        LootBoxType lootboxType;
+        address fundsHolder;
+        IPriceHolder priceHolder;
+        IExilonNftLootboxMain exilonNftLootboxMain;
+    }
+
+    function refundWinningPlaceToOwner(
+        refundWinningPlaceToOwnerInput memory input,
+        WinningPlace[] storage _prizes,
+        mapping(address => uint256) storage _totalSharesOfERC20,
+        mapping(uint256 => address) storage winningPlaceCreator
+    ) external returns (TokenInfo[] memory) {
+        WinningPlace[] memory singletonArray = new WinningPlace[](1);
+        singletonArray[0] = input.winningPlace;
+        (TokenInfo[] memory allTokensInfo, ) = processTokensInfo(singletonArray);
+
+        for (uint256 i = 0; i < allTokensInfo.length; ++i) {
+            uint256 balanceBefore;
+            uint256 sharesBefore;
+            if (allTokensInfo[i].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
+                balanceBefore = IERC20(allTokensInfo[i].tokenAddress).balanceOf(input.fundsHolder);
+
+                sharesBefore = _totalSharesOfERC20[allTokensInfo[i].tokenAddress];
+                _totalSharesOfERC20[allTokensInfo[i].tokenAddress] =
+                    sharesBefore -
+                    allTokensInfo[i].amount *
+                    input.winningPlace.placeAmounts;
+                allTokensInfo[i].amount = (allTokensInfo[i].amount * input.winningPlace.placeAmounts * balanceBefore) / sharesBefore;
+            }
+        }
+
+        uint256 length = _prizes.length;
+        if (input.index < length - 1) {
+            _prizes[input.index] = _prizes[length - 1];
+            winningPlaceCreator[input.index] = winningPlaceCreator[length - 1];
+        }
+        delete winningPlaceCreator[length - 1];
+        _prizes.pop();
+
+        if (input.lootboxType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_RESERVE) {
+            input.exilonNftLootboxMain.refundToUser(
+                input.creator,
+                input.creator,
+                0,
+                input.priceHolder.defaultOpeningPrice(input.id) * input.winningPlace.placeAmounts
+            );
+        }
+
+        input.exilonNftLootboxMain.burn(address(this), input.id, input.winningPlace.placeAmounts);
+
+        return allTokensInfo;
+    }
+
     function removeWinningPlace(
         WinningPlace[] memory restPrizes,
         uint256 winningIndex,
@@ -425,7 +485,7 @@ library ExilonNftLootboxLibrary {
                 }
             }
 
-            delete winningPlaceCreator[len];
+            delete winningPlaceCreator[len - 1];
             winningPlaces.pop();
 
             assembly {
@@ -465,6 +525,7 @@ library ExilonNftLootboxLibrary {
 
     function sendTokenCarefully(
         IERC20 token,
+        address user,
         uint256 amount,
         bool reequireSuccess
     )
@@ -494,14 +555,14 @@ library ExilonNftLootboxLibrary {
                     gasleft() >= MAX_GAS_FOR_ETH_TRANSFER,
                     "ExilonNftLootboxLibrary: Not enough gas"
                 );
-                (success, data) = msg.sender.call{gas: MAX_GAS_FOR_ETH_TRANSFER, value: amount}("");
+                (success, data) = user.call{gas: MAX_GAS_FOR_ETH_TRANSFER, value: amount}("");
             } else {
                 require(
                     gasleft() >= MAX_GAS_FOR_TOKEN_TRANSFER,
                     "ExilonNftLootboxLibrary: Not enough gas"
                 );
                 (success, data) = address(token).call{gas: MAX_GAS_FOR_TOKEN_TRANSFER}(
-                    abi.encodeWithSelector(IERC20.transfer.selector, msg.sender, amount)
+                    abi.encodeWithSelector(IERC20.transfer.selector, user, amount)
                 );
             }
 

@@ -51,23 +51,16 @@ contract ExilonNftLootboxMaster is
     mapping(uint256 => ExilonNftLootboxLibrary.WinningPlace[]) private _prizes;
 
     // Parameters for random
-    uint256 public minRandomPercentage = 9_000; // 90%
-    uint256 public maxRandomPercentage = 15_000; // 150%
-    uint256 public powParameter = 5;
     uint256 private _nonce;
-
-    // Amount of exilon tokens that the openers of lootboxes will get
-    uint256 public amountOfAirdropTokenToOpenner;
 
     // Addresses info
     IERC20 public immutable exilon;
-    IERC20 public airdropToken;
 
     // Connects an id and token address with the available amount of this token for this id
     mapping(uint256 => mapping(address => uint256)) private _totalSharesOfERC20;
 
-    // Connects and id and winning place index with it's creator
-    mapping(uint256 => mapping(uint256 => address)) private _winningPlaceCreator;
+    // Connects id and winning place index with it's creator
+    mapping(uint256 => mapping(uint256 => address)) public winningPlaceCreator;
 
     modifier onlyLootboxMain() {
         require(msg.sender == address(exilonNftLootboxMain), "ExilonNftLootboxMaster: No access");
@@ -91,26 +84,16 @@ contract ExilonNftLootboxMaster is
     );
     event TransferFeeToCreator(address indexed creator, uint256 bnbAmount);
     event MergeMaded(uint256 idFrom, uint256 idTo);
-
-    event RandomParamsChange(
-        uint256 newMinRandomPercentage,
-        uint256 newMaxRandomPercentage,
-        uint256 newPowParameter
-    );
-
-    event ChangeAirdropParams(address airdropToken, uint256 airdropAmount);
-
-    event GoodAirdropTransfer(address indexed token, address indexed to, uint256 amount);
-    event BadAirdropTransfer(
-        address indexed token,
-        address indexed to,
-        uint256 amount,
-        string transferError
+    event RemovingWinningPlace(
+        address indexed manager,
+        address indexed creator,
+        uint256 id,
+        uint256 index,
+        ExilonNftLootboxLibrary.WinningPlace winningPlace
     );
 
     constructor(
         IERC20 _exilon,
-        IERC20 _airdropToken,
         address _usdToken,
         IPancakeRouter02 _pancakeRouter,
         address _feeReceiver,
@@ -125,10 +108,6 @@ contract ExilonNftLootboxMaster is
     {
         exilon = _exilon;
 
-        uint256 oneAirdropToken = 10**IERC20Metadata(address(_airdropToken)).decimals();
-        amountOfAirdropTokenToOpenner = oneAirdropToken;
-        airdropToken = _airdropToken;
-
         exilonNftLootboxMain = _exilonNftLootboxMain;
         _exilonNftLootboxMain.init(address(_priceHolder));
 
@@ -137,9 +116,6 @@ contract ExilonNftLootboxMaster is
 
         priceHolder = _priceHolder;
         _priceHolder.init();
-
-        emit ChangeAirdropParams(address(_airdropToken), oneAirdropToken);
-        emit RandomParamsChange(minRandomPercentage, maxRandomPercentage, powParameter);
     }
 
     // max - 200 different tokens for all winning places
@@ -274,7 +250,7 @@ contract ExilonNftLootboxMaster is
             stack.winningPlacesFrom.length,
             idsToCreator[idFrom],
             _prizes,
-            _winningPlaceCreator
+            winningPlaceCreator
         );
 
         exilonNftLootboxMain.burn(address(this), idFrom, stack.totalLootboxes);
@@ -286,9 +262,44 @@ contract ExilonNftLootboxMaster is
     function removeWinningPlace(
         uint256 id,
         uint256 index,
-        address owner
+        uint256 winningPlaces,
+        address creator
     ) external onlyManagerOrAdmin {
-        // TODO
+        ExilonNftLootboxLibrary.LootBoxType lootboxType = exilonNftLootboxMain.lootboxType(id);
+        require(
+            lootboxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT,
+            "ExilonNftLootboxMaster: Mega lootboxes"
+        );
+        require(index < _prizes[id].length, "ExilonNftLootboxMaster: Wrong index");
+        ExilonNftLootboxLibrary.WinningPlace memory winningPlace = _prizes[id][index];
+        require(
+            winningPlaces > 0 && winningPlaces == winningPlace.placeAmounts,
+            "ExilonNftLootboxMaster: winningPlaces"
+        );
+        require(winningPlaceCreator[id][index] == creator, "ExilonNftLootboxMaster: Creator");
+
+        IFundsHolder fundsHolder = IFundsHolder(idsToFundsHolders[id]);
+
+        fundsHolder.withdrawTokens(
+            ExilonNftLootboxLibrary.refundWinningPlaceToOwner(
+                ExilonNftLootboxLibrary.refundWinningPlaceToOwnerInput({
+                    id: id,
+                    index: index,
+                    creator: creator,
+                    winningPlace: winningPlace,
+                    lootboxType: lootboxType,
+                    fundsHolder: address(fundsHolder),
+                    priceHolder: priceHolder,
+                    exilonNftLootboxMain: exilonNftLootboxMain
+                }),
+                _prizes[id],
+                _totalSharesOfERC20[id],
+                winningPlaceCreator[id]
+            ),
+            creator
+        );
+
+        emit RemovingWinningPlace(msg.sender, creator, id, index, winningPlace);
     }
 
     function deleteId(uint256 id) external onlyLootboxMain {
@@ -301,48 +312,21 @@ contract ExilonNftLootboxMaster is
         emit IdDeleted(id, fundsHolder);
     }
 
-    function setWinningPlacesToTheCreator(uint256 id) external override onlyLootboxMain {
+    function setWinningPlacesToTheCreator(uint256 id)
+        external
+        override
+        onlyLootboxMain
+        returns (address creator)
+    {
         uint256 length = _prizes[id].length;
-        address creator = idsToCreator[id];
+        creator = idsToCreator[id];
         for (uint256 i = 0; i < length; ++i) {
-            _winningPlaceCreator[id][i] = creator;
+            winningPlaceCreator[id][i] = creator;
         }
     }
 
     function withdrawToken(IERC20 token, uint256 amount) external onlyAdmin nonReentrant {
-        ExilonNftLootboxLibrary.sendTokenCarefully(token, amount, true);
-    }
-
-    function setRandomParams(
-        uint256 _minRandomPercentage,
-        uint256 _maxRandomPercentage,
-        uint256 _powParameter
-    ) external onlyAdmin {
-        require(
-            _minRandomPercentage <= _maxRandomPercentage &&
-                _minRandomPercentage >= 5_000 &&
-                _minRandomPercentage <= 10_000 &&
-                _maxRandomPercentage >= 10_000 &&
-                _maxRandomPercentage <= 100_000,
-            "ExilonNftLootboxMaster: Wrong percentage"
-        ); // 50% min and 1000% max
-        require(
-            _powParameter >= 1 && _powParameter <= 8,
-            "ExilonNftLootboxMaster: Wrong pow parameter"
-        );
-
-        minRandomPercentage = _minRandomPercentage;
-        maxRandomPercentage = _maxRandomPercentage;
-        powParameter = _powParameter;
-
-        emit RandomParamsChange(_minRandomPercentage, _maxRandomPercentage, _powParameter);
-    }
-
-    function setAmountOfAirdropParams(IERC20 newAirdropToken, uint256 newValue) external onlyAdmin {
-        airdropToken = newAirdropToken;
-        amountOfAirdropTokenToOpenner = newValue;
-
-        emit ChangeAirdropParams(address(newAirdropToken), newValue);
+        ExilonNftLootboxLibrary.sendTokenCarefully(token, msg.sender, amount, true);
     }
 
     function getRestPrizesLength(uint256 id) external view returns (uint256) {
@@ -452,7 +436,7 @@ contract ExilonNftLootboxMaster is
             _processFeeTransferOpening(id, bnbAmount);
         }
 
-        _airdropToOpenner();
+        priceHolder.airdropToOpenner(msg.sender);
 
         stack.prizes = _prizes[id];
         stack.fundsHolder = idsToFundsHolders[id];
@@ -475,9 +459,8 @@ contract ExilonNftLootboxMaster is
 
         // TODO: Withdraw all tokens if amount==totalSupply
 
-        stack.minRandomPercentage = minRandomPercentage;
-        stack.maxRandomPercentage = maxRandomPercentage;
-        stack.powParameter = powParameter;
+        (stack.minRandomPercentage, stack.maxRandomPercentage, stack.powParameter) = priceHolder
+            .getRandomParameters();
 
         for (uint256 i = 0; i < amount; ++i) {
             uint256 winningIndex = ExilonNftLootboxLibrary.getWinningIndex(
@@ -510,7 +493,7 @@ contract ExilonNftLootboxMaster is
 
             address creator;
             if (stack.boxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT) {
-                creator = _winningPlaceCreator[id][winningIndex];
+                creator = winningPlaceCreator[id][winningIndex];
 
                 for (uint256 j = 0; j < stack.lastIndexCreators; ++j) {
                     if (stack.creators[j] == creator) {
@@ -530,7 +513,7 @@ contract ExilonNftLootboxMaster is
                 winningIndex,
                 _prizes[id],
                 stack.boxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT,
-                _winningPlaceCreator[id]
+                winningPlaceCreator[id]
             );
 
             if (stack.boxType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_RESERVE) {
@@ -601,18 +584,6 @@ contract ExilonNftLootboxMaster is
             emit TransferFeeToCreator(creator, amountToCreator);
         }
         _processFeeTransferOnFeeReceiver();
-    }
-
-    function _airdropToOpenner() private {
-        IERC20 _airdropToken = airdropToken;
-        (bool success, uint256 amount, string memory transferError) = ExilonNftLootboxLibrary
-            .sendTokenCarefully(_airdropToken, amountOfAirdropTokenToOpenner, false);
-
-        if (!success) {
-            emit BadAirdropTransfer(address(_airdropToken), msg.sender, amount, transferError);
-        } else {
-            emit GoodAirdropTransfer(address(_airdropToken), msg.sender, amount);
-        }
     }
 
     struct _withdrawWinningPlaceInputStruct {

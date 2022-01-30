@@ -24,6 +24,16 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
     // Percentage from openning price that the creators will get (100% - 10_000)
     uint256 public override creatorPercentage = 5_000; // 50%
 
+    // Parameters for random
+    uint256 public minRandomPercentage = 9_000; // 90%
+    uint256 public maxRandomPercentage = 15_000; // 150%
+    uint256 public powParameter = 5;
+
+    // Airdrop token
+    IERC20 public airdropToken;
+    // Amount of exilon tokens that the openers of lootboxes will get
+    uint256 public amountOfAirdropTokenToOpenner;
+
     // Parameters for opening price of mega lootboxes
     uint256 public maxOpeningPricePercentage = 20_000; // 200%
     uint256 public priceDeltaPercentage = 100; // 1%
@@ -46,6 +56,12 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
         uint256 newMinimumOpeningPrice,
         uint256 newCreatorPercentage
     );
+    event RandomParamsChange(
+        uint256 newMinRandomPercentage,
+        uint256 newMaxRandomPercentage,
+        uint256 newPowParameter
+    );
+    event ChangeAirdropParams(address airdropToken, uint256 airdropAmount);
     event OpeningPriceForIdChanged(uint256 id, uint256 newOpeningPrice);
     event OpeningPriceForMegaLootboxesChange(
         uint256 newMaxOpeningPricePercentage,
@@ -53,7 +69,16 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
         uint256 newPriceTimeDelta
     );
 
+    event GoodAirdropTransfer(address indexed token, address indexed to, uint256 amount);
+    event BadAirdropTransfer(
+        address indexed token,
+        address indexed to,
+        uint256 amount,
+        string transferError
+    );
+
     constructor(
+        IERC20 _airdropToken,
         address _usdToken,
         IPancakeRouter02 _pancakeRouter,
         IAccess _accessControl,
@@ -63,6 +88,13 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
 
         creatingPrice = _oneUsd;
         minimumOpeningPrice = _oneUsd;
+
+        uint256 oneAirdropToken = 10**IERC20Metadata(address(_airdropToken)).decimals();
+        amountOfAirdropTokenToOpenner = oneAirdropToken;
+        airdropToken = _airdropToken;
+
+        emit RandomParamsChange(minRandomPercentage, maxRandomPercentage, powParameter);
+        emit ChangeAirdropParams(address(_airdropToken), oneAirdropToken);
     }
 
     function init() external override {
@@ -75,6 +107,54 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
         require(openingPrice >= minimumOpeningPrice, "PriceHolder: Opening price is too low");
 
         defaultOpeningPrice[id] = openingPrice;
+    }
+
+    function withdrawToken(IERC20 token, uint256 amount) external onlyAdmin nonReentrant {
+        ExilonNftLootboxLibrary.sendTokenCarefully(token, msg.sender, amount, true);
+    }
+
+    function airdropToOpenner(address user) external override onlyMaster {
+        IERC20 _airdropToken = airdropToken;
+        (bool success, uint256 amount, string memory transferError) = ExilonNftLootboxLibrary
+            .sendTokenCarefully(_airdropToken, user, amountOfAirdropTokenToOpenner, false);
+
+        if (!success) {
+            emit BadAirdropTransfer(address(_airdropToken), msg.sender, amount, transferError);
+        } else {
+            emit GoodAirdropTransfer(address(_airdropToken), msg.sender, amount);
+        }
+    }
+
+    function setRandomParams(
+        uint256 _minRandomPercentage,
+        uint256 _maxRandomPercentage,
+        uint256 _powParameter
+    ) external onlyAdmin {
+        require(
+            _minRandomPercentage <= _maxRandomPercentage &&
+                _minRandomPercentage >= 5_000 &&
+                _minRandomPercentage <= 10_000 &&
+                _maxRandomPercentage >= 10_000 &&
+                _maxRandomPercentage <= 100_000,
+            "ExilonNftLootboxMaster: Wrong percentage"
+        ); // 50% min and 1000% max
+        require(
+            _powParameter >= 1 && _powParameter <= 8,
+            "ExilonNftLootboxMaster: Wrong pow parameter"
+        );
+
+        minRandomPercentage = _minRandomPercentage;
+        maxRandomPercentage = _maxRandomPercentage;
+        powParameter = _powParameter;
+
+        emit RandomParamsChange(_minRandomPercentage, _maxRandomPercentage, _powParameter);
+    }
+
+    function setAmountOfAirdropParams(IERC20 newAirdropToken, uint256 newValue) external onlyAdmin {
+        airdropToken = newAirdropToken;
+        amountOfAirdropTokenToOpenner = newValue;
+
+        emit ChangeAirdropParams(address(newAirdropToken), newValue);
     }
 
     function setPriceInfo(
@@ -150,6 +230,18 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
             _lastPurchase[id][user].price = newPrice / amount;
             _lastPurchase[id][user].timestamp = block.timestamp;
         }
+    }
+
+    function getRandomParameters()
+        external
+        view
+        returns (
+            uint256 _minRandomPercentage,
+            uint256 _maxRandomPercentage,
+            uint256 _powParameter
+        )
+    {
+        return (minRandomPercentage, maxRandomPercentage, powParameter);
     }
 
     function getOpeningPrice(

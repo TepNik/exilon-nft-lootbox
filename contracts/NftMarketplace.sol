@@ -198,7 +198,7 @@ contract NftMarketplace is FeeCalculator, FeeSender, ERC721Holder, ERC1155Holder
             sellingInfo.price,
             bnbValue,
             block.timestamp,
-            sellingInfo.tokenInfo
+            withdrawInfo
         );
     }
 

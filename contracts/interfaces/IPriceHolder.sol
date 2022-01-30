@@ -15,6 +15,8 @@ interface IPriceHolder {
 
     function defaultOpeningPrice(uint256 id) external view returns (uint256);
 
+    function airdropToOpenner(address user) external;
+
     function setDefaultOpeningPrice(uint256 id, uint256 openingPrice) external;
 
     function makePurchase(
@@ -30,4 +32,13 @@ interface IPriceHolder {
         uint256 id,
         uint256 amount
     ) external view returns (uint256);
+
+    function getRandomParameters()
+        external
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256
+        );
 }

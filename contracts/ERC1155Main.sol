@@ -36,10 +36,9 @@ contract ERC1155Main is FeeCalculator, FeeSender, ERC1155 {
         FeeSender(_feeReceiver)
         AccessConnector(_accessControl)
     {
-        uint256 oneDollar = 10**IERC20Metadata(_usdToken).decimals();
-        creatingPrice = oneDollar;
+        creatingPrice = _oneUsd;
 
-        emit CreatingPriceChange(oneDollar);
+        emit CreatingPriceChange(_oneUsd);
     }
 
     function makeNft(uint256 amount, string memory _uri) external payable nonReentrant onlyEOA {

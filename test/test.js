@@ -116,8 +116,13 @@ describe("Exilon Nft Lootbox test", function () {
         );
         FundsHolderFactoryInst = await FundsHolderFactoryFactory.deploy();
 
-        const PriceHolderFactory = await hre.ethers.getContractFactory("PriceHolder");
+        const PriceHolderFactory = await hre.ethers.getContractFactory("PriceHolder", {
+            libraries: {
+                ExilonNftLootboxLibrary: ExilonNftLootboxLibraryInst.address,
+            },
+        });
         PriceHolderInst = await PriceHolderFactory.deploy(
+            ExilonInst.address,
             UsdInst.address,
             PancakeRouterInst.address,
             AccessInst.address,
@@ -133,7 +138,6 @@ describe("Exilon Nft Lootbox test", function () {
             }
         );
         ExilonNftLootboxMasterInst = await ExilonNftLootboxMasterFactory.deploy(
-            ExilonInst.address,
             ExilonInst.address,
             UsdInst.address,
             PancakeRouterInst.address,
