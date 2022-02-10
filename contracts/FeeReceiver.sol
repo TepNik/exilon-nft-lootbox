@@ -126,7 +126,6 @@ contract FeeReceiver is AccessConnector {
         uint256 _totalShares;
         for (uint256 i = 0; i < _feeRecipients.length; ++i) {
             require(_feeRecipientAmounts[i] > 0, "FeeReceiver: Bad amounts");
-            require(_feeRecipients[i].code.length == 0, "FeeReceiver: Not allowed contracts");
 
             _totalShares += _feeRecipientAmounts[i];
         }

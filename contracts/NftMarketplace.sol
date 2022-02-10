@@ -42,7 +42,7 @@ contract NftMarketplace is FeeCalculator, FeeSender, ERC721Holder, ERC1155Holder
     IExilonNftLootboxMain public exilonNftLootboxMain;
 
     uint256 public moderationPrice;
-    uint256 public feePercentage = 1_000; // 10%
+    uint256 public feePercentage = 200; // 2%
 
     mapping(uint256 => SellingInfo) public idToSellingInfo;
 
@@ -124,7 +124,7 @@ contract NftMarketplace is FeeCalculator, FeeSender, ERC721Holder, ERC1155Holder
         FeeSender(_feeReceiver)
         AccessConnector(_accessControl)
     {
-        moderationPrice = _oneUsd;
+        moderationPrice = 5 * _oneUsd;
 
         emit FeePercentageChange(feePercentage);
         emit ModerationPriceChange(_oneUsd);
@@ -166,29 +166,30 @@ contract NftMarketplace is FeeCalculator, FeeSender, ERC721Holder, ERC1155Holder
 
         SellingInfo memory sellingInfo = idToSellingInfo[id];
 
+        uint256 amountBefore = sellingInfo.tokenInfo.amount;
         if (sellingInfo.tokenInfo.tokenType == ExilonNftLootboxLibrary.TokenType.ERC721) {
             require(amount == 0, "NftMarketplace: ERC721 amount");
         } else {
-            require(
-                amount > 0 && amount <= sellingInfo.tokenInfo.amount,
-                "NftMarketplace: ERC1155 amount"
-            );
+            require(amount > 0 && amount <= amountBefore, "NftMarketplace: ERC1155 amount");
         }
 
         uint256 bnbValue = _checkFees(sellingInfo.price * amount);
         _processFeeTransfer(bnbValue, sellingInfo.seller);
 
-        ExilonNftLootboxLibrary.TokenInfo memory withdrawInfo = sellingInfo.tokenInfo;
-        withdrawInfo.amount = amount;
-        ExilonNftLootboxLibrary.withdrawToken(withdrawInfo, address(this), msg.sender, true);
+        sellingInfo.tokenInfo.amount = amount;
+        ExilonNftLootboxLibrary.withdrawToken(
+            sellingInfo.tokenInfo,
+            address(this),
+            msg.sender,
+            true
+        );
 
-        sellingInfo.tokenInfo.amount -= amount;
-        if (sellingInfo.tokenInfo.amount == 0) {
+        if (amountBefore - amount == 0) {
             _activeIds.remove(id);
             _userToActiveIds[sellingInfo.seller].remove(id);
             delete idToSellingInfo[id];
         } else {
-            idToSellingInfo[id].tokenInfo.amount = sellingInfo.tokenInfo.amount;
+            idToSellingInfo[id].tokenInfo.amount = amountBefore - amount;
         }
 
         emit SellMaded(
@@ -198,7 +199,7 @@ contract NftMarketplace is FeeCalculator, FeeSender, ERC721Holder, ERC1155Holder
             sellingInfo.price,
             bnbValue,
             block.timestamp,
-            withdrawInfo
+            sellingInfo.tokenInfo
         );
     }
 

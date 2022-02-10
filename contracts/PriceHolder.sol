@@ -22,7 +22,7 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
     // Connects id with it's openning price
     mapping(uint256 => uint256) public override defaultOpeningPrice;
     // Percentage from openning price that the creators will get (100% - 10_000)
-    uint256 public override creatorPercentage = 5_000; // 50%
+    uint256 public override creatorPercentage = 9_000; // 90%
 
     // Parameters for random
     uint256 public minRandomPercentage = 9_000; // 90%
@@ -164,7 +164,7 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
     ) external onlyAdmin {
         require(
             _creatorPercentage >= 5_000 && _creatorPercentage <= 10_000,
-            "ExilonNftLootboxMaster: Too big percentage"
+            "ExilonNftLootboxMaster: Percentage"
         );
         require(_minimumOpeningPrice > 0, "ExilonNftLootboxMaster: Min price");
         require(_creatingPrice > 0, "ExilonNftLootboxMaster: Creating price");
@@ -183,10 +183,10 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
     ) external onlyAdmin {
         require(
             newMaxOpeningPricePercentage >= 10_000 && newMaxOpeningPricePercentage <= 100_000,
-            "ExilonNftLootboxMaster: Wrong max"
+            "ExilonNftLootboxMaster: Max"
         );
-        require(newPriceDeltaPercentage <= 1_000, "ExilonNftLootboxMaster: Wrong price delta");
-        require(newPriceTimeDelta <= 1 days, "ExilonNftLootboxMaster: Bad time delta");
+        require(newPriceDeltaPercentage <= 1_000, "ExilonNftLootboxMaster: Price delta");
+        require(newPriceTimeDelta <= 1 days, "ExilonNftLootboxMaster: Time delta");
 
         maxOpeningPricePercentage = newMaxOpeningPricePercentage;
         priceDeltaPercentage = newPriceDeltaPercentage;
@@ -275,17 +275,16 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
                 lastPurchase.price == 0 ||
                 lastPurchase.timestamp + priceTimeDelta < block.timestamp
             ) {
-                return minPrice * amount;
-            } else {
-                uint256 maxPrice = (minPrice * maxOpeningPricePercentage) / 10_000;
-                uint256 priceNow = lastPurchase.price +
-                    (minPrice * priceDeltaPercentage * amount) /
-                    10_000;
-                if (priceNow > maxPrice) {
-                    priceNow = maxPrice;
-                }
-                return priceNow * amount;
+                lastPurchase.price = minPrice;
             }
+            uint256 maxPrice = (minPrice * maxOpeningPricePercentage) / 10_000;
+            uint256 priceNow = lastPurchase.price +
+                (minPrice * priceDeltaPercentage * amount) /
+                10_000;
+            if (priceNow > maxPrice) {
+                priceNow = maxPrice;
+            }
+            return priceNow * amount;
         } else {
             if (user == boxCreator) {
                 return 0;

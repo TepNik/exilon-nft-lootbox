@@ -439,7 +439,9 @@ library ExilonNftLootboxLibrary {
                     sharesBefore -
                     allTokensInfo[i].amount *
                     input.winningPlace.placeAmounts;
-                allTokensInfo[i].amount = (allTokensInfo[i].amount * input.winningPlace.placeAmounts * balanceBefore) / sharesBefore;
+                allTokensInfo[i].amount =
+                    (allTokensInfo[i].amount * input.winningPlace.placeAmounts * balanceBefore) /
+                    sharesBefore;
             }
         }
 

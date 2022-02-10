@@ -10,8 +10,6 @@ import "./ExilonNftLootboxLibrary.sol";
 import "./interfaces/IFundsHolder.sol";
 
 contract FundsHolder is ERC1155Holder, ERC721Holder, IFundsHolder {
-    bool isInited;
-
     address public master;
 
     modifier onlyMaster() {
@@ -22,8 +20,7 @@ contract FundsHolder is ERC1155Holder, ERC721Holder, IFundsHolder {
     constructor() {}
 
     function init(address _master) external override {
-        require(!isInited, "FundsHolder: Already initied");
-        isInited = true;
+        require(master == address(0), "FundsHolder: Already initied");
 
         master = _master;
     }

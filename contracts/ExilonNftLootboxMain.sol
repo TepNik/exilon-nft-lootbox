@@ -109,7 +109,7 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
 
         _pancakeFactory = IPancakeFactory(_pancakeRouter.factory());
 
-        mergePrice = _oneUsd;
+        mergePrice = 100 * _oneUsd;
 
         emit MergePriceChange(_oneUsd);
     }
