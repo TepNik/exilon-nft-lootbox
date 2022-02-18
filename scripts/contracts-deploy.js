@@ -105,7 +105,8 @@ async function main() {
     });
     console.log("Deploying PriceHolder...");
     const PriceHolderInst = await PriceHolderFactory.deploy(
-        exilonAddress,
+        //exilonAddress,
+        ethers.constants.AddressZero,
         usdAddress,
         dexRouterAddress,
         AccessInst.address,

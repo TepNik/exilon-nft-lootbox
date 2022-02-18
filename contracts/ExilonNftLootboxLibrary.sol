@@ -446,9 +446,13 @@ library ExilonNftLootboxLibrary {
         uint256 length = _prizes.length;
         if (input.index < length - 1) {
             _prizes[input.index] = _prizes[length - 1];
-            winningPlaceCreator[input.index] = winningPlaceCreator[length - 1];
+            if (input.lootboxType != LootBoxType.DEFAULT) {
+                winningPlaceCreator[input.index] = winningPlaceCreator[length - 1];
+            }
         }
-        delete winningPlaceCreator[length - 1];
+        if (input.lootboxType != LootBoxType.DEFAULT) {
+            delete winningPlaceCreator[length - 1];
+        }
         _prizes.pop();
 
         if (input.lootboxType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_RESERVE) {
