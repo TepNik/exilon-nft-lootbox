@@ -42,8 +42,6 @@ contract ExilonNftLootboxMaster is
     mapping(uint256 => address) public override idsToCreator;
     // Connects creator address with the ids, that he maded
     mapping(address => EnumerableSet.UintSet) private _creatorToIds;
-    // Connects creator address and id of lootbox with amount of creator's winning places that users have already opened
-    mapping(address => mapping(uint256 => uint256)) public numberOfCreatorsOpenedLootboxes;
     // Last id
     uint256 private _lastId;
 
@@ -265,18 +263,19 @@ contract ExilonNftLootboxMaster is
         uint256 winningPlaces,
         address creator
     ) external onlyManagerOrAdmin {
-        ExilonNftLootboxLibrary.LootBoxType lootboxType = exilonNftLootboxMain.lootboxType(id);
-        require(
-            lootboxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT,
-            "ExilonNftLootboxMaster: Mega lootboxes"
-        );
         require(index < _prizes[id].length, "ExilonNftLootboxMaster: Wrong index");
         ExilonNftLootboxLibrary.WinningPlace memory winningPlace = _prizes[id][index];
         require(
             winningPlaces > 0 && winningPlaces == winningPlace.placeAmounts,
             "ExilonNftLootboxMaster: winningPlaces"
         );
-        require(winningPlaceCreator[id][index] == creator, "ExilonNftLootboxMaster: Creator");
+
+        ExilonNftLootboxLibrary.LootBoxType lootboxType = exilonNftLootboxMain.lootboxType(id);
+        if (lootboxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT) {
+            require(winningPlaceCreator[id][index] == creator, "ExilonNftLootboxMaster: Creator");
+        } else {
+            require(idsToCreator[id] == creator, "ExilonNftLootboxMaster: Creator");
+        }
 
         IFundsHolder fundsHolder = IFundsHolder(idsToFundsHolders[id]);
 
@@ -487,7 +486,8 @@ contract ExilonNftLootboxMaster is
                     maxRandomPercentage: stack.maxRandomPercentage,
                     powParameter: stack.powParameter,
                     successWithdrawTokens: successWithdrawTokens,
-                    boxType: stack.boxType
+                    boxType: stack.boxType,
+                    winningIndex: winningIndex
                 })
             );
 
@@ -495,14 +495,22 @@ contract ExilonNftLootboxMaster is
             if (stack.boxType != ExilonNftLootboxLibrary.LootBoxType.DEFAULT) {
                 creator = winningPlaceCreator[id][winningIndex];
 
-                for (uint256 j = 0; j < stack.lastIndexCreators; ++j) {
+                uint256 findIndex = stack.lastIndexCreators;
+                for (
+                    uint256 j = 0;
+                    j < stack.lastIndexCreators && findIndex == stack.lastIndexCreators;
+                    ++j
+                ) {
                     if (stack.creators[j] == creator) {
-                        ++stack.creatorsAmounts[j];
-                    } else if (j == stack.lastIndexCreators - 1) {
-                        stack.creators[stack.lastIndexCreators] = creator;
-                        stack.creatorsAmounts[stack.lastIndexCreators] = 1;
-                        ++stack.lastIndexCreators;
+                        findIndex = j;
                     }
+                }
+                if (findIndex == stack.lastIndexCreators) {
+                    stack.creators[findIndex] = creator;
+                    stack.creatorsAmounts[findIndex] = 1;
+                    ++stack.lastIndexCreators;
+                } else {
+                    ++stack.creatorsAmounts[findIndex];
                 }
             } else {
                 creator = stack.creator;
@@ -554,8 +562,6 @@ contract ExilonNftLootboxMaster is
         }
 
         for (uint256 i = 0; i < stack.creators.length; ++i) {
-            numberOfCreatorsOpenedLootboxes[stack.creators[i]][id] += stack.creatorsAmounts[i];
-
             emit CreatorWithdraw(stack.creators[i], msg.sender, id, stack.creatorsAmounts[i]);
         }
 
@@ -598,6 +604,7 @@ contract ExilonNftLootboxMaster is
         uint256 powParameter;
         ExilonNftLootboxLibrary.TokenInfo[] successWithdrawTokens;
         ExilonNftLootboxLibrary.LootBoxType boxType;
+        uint256 winningIndex;
     }
 
     function _withdrawWinningPlace(_withdrawWinningPlaceInputStruct memory input)
@@ -642,8 +649,6 @@ contract ExilonNftLootboxMaster is
                     getWinningAmountOutput.sharesAmount;
 
                 balanceBefore = IERC20(input.prizeInfo[i].tokenAddress).balanceOf(msg.sender);
-            } else {
-                newPrizeInfoAmount = input.prizeInfo[i].amount;
             }
 
             if (IFundsHolder(input.fundsHolder).withdrawToken(input.prizeInfo[i], msg.sender)) {
@@ -674,7 +679,11 @@ contract ExilonNftLootboxMaster is
                     );
                 }
             }
-            input.prizeInfo[i].amount = newPrizeInfoAmount;
+
+            if (input.prizeInfo[i].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
+                input.prizeInfo[i].amount = newPrizeInfoAmount;
+                _prizes[input.id][input.winningIndex].prizesInfo[i].amount = newPrizeInfoAmount;
+            }
         }
 
         return (

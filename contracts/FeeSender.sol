@@ -8,7 +8,9 @@ import "./AccessConnector.sol";
 abstract contract FeeSender is AccessConnector {
     address public feeReceiver;
 
-    event FeeReceiverChange(address newValue);
+    uint256 public minimalAmountToDistribute = 0.5 ether;
+
+    event FeeSendInfoChange(address newFeeReceiver, uint256 newMinimalAmountToDistribute);
 
     event CommissionTransfer(address indexed to, uint256 amount);
     event BadCommissionTransfer(address indexed to, uint256 amount);
@@ -16,17 +18,21 @@ abstract contract FeeSender is AccessConnector {
     constructor(address _feeReceiver) {
         feeReceiver = _feeReceiver;
 
-        emit FeeReceiverChange(_feeReceiver);
+        emit FeeSendInfoChange(_feeReceiver, minimalAmountToDistribute);
     }
 
     function processFeeTransferOnFeeReceiver() external onlyAdmin {
         _processFeeTransferOnFeeReceiverPrivate(true);
     }
 
-    function setFeeReceiver(address newValue) external onlyAdmin {
-        feeReceiver = newValue;
+    function setFeeInfo(address newFeeReceiver, uint256 newMinimalAmountToDistribute)
+        external
+        onlyAdmin
+    {
+        feeReceiver = newFeeReceiver;
+        minimalAmountToDistribute = newMinimalAmountToDistribute;
 
-        emit FeeReceiverChange(newValue);
+        emit FeeSendInfoChange(newFeeReceiver, newMinimalAmountToDistribute);
     }
 
     function _processFeeTransferOnFeeReceiver() internal {
@@ -36,7 +42,7 @@ abstract contract FeeSender is AccessConnector {
     function _processFeeTransferOnFeeReceiverPrivate(bool force) private {
         address _feeReceiver = feeReceiver;
         uint256 amount = address(this).balance;
-        if (amount == 0) {
+        if (amount == 0 || (!force && amount < minimalAmountToDistribute)) {
             return;
         }
         bool success;

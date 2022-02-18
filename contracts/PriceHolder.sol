@@ -89,12 +89,15 @@ contract PriceHolder is FeeCalculator, IPriceHolder {
         creatingPrice = _oneUsd;
         minimumOpeningPrice = _oneUsd;
 
-        uint256 oneAirdropToken = 10**IERC20Metadata(address(_airdropToken)).decimals();
-        amountOfAirdropTokenToOpenner = oneAirdropToken;
-        airdropToken = _airdropToken;
+        if (address(_airdropToken) != address(0)) {
+            uint256 oneAirdropToken = 10**IERC20Metadata(address(_airdropToken)).decimals();
+            amountOfAirdropTokenToOpenner = oneAirdropToken;
+            airdropToken = _airdropToken;
+
+            emit ChangeAirdropParams(address(_airdropToken), oneAirdropToken);
+        }
 
         emit RandomParamsChange(minRandomPercentage, maxRandomPercentage, powParameter);
-        emit ChangeAirdropParams(address(_airdropToken), oneAirdropToken);
     }
 
     function init() external override {

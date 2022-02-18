@@ -157,14 +157,8 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
         _processFeeTransferOnFeeReceiver();
 
         if (megaType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_RESERVE) {
-            uint256 refundPoolAmount = idSupply * priceHolder.defaultOpeningPrice(megaId);
-
-            require(
-                IERC20(usdToken).allowance(msg.sender, address(this)) >= refundPoolAmount,
-                "ExilonNftLootboxMain: No enougth allowance for refund"
-            );
-            IERC20(usdToken).safeTransferFrom(msg.sender, address(this), refundPoolAmount);
-            emit RefundFundCollected(msg.sender, refundPoolAmount);
+            // TODO
+            uint256 refundPoolAmount = _transferRefund(megaId, idSupply);
 
             _mergeRequestInfo.push(
                 MergeRequestInfo({
@@ -175,26 +169,7 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
                 })
             );
 
-            uint256 prizesLength = _masterContract.getRestPrizesLength(id);
-            ExilonNftLootboxLibrary.WinningPlace[] memory prizes = _masterContract
-                .getRestPrizesInfo(id, 0, prizesLength);
-            (ExilonNftLootboxLibrary.TokenInfo[] memory allTokensInfo, ) = ExilonNftLootboxLibrary
-                .processTokensInfo(prizes);
-            for (uint256 i = 0; i < allTokensInfo.length; ++i) {
-                if (
-                    allTokensInfo[i].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20 &&
-                    allTokensInfo[i].tokenAddress != usdToken &&
-                    allTokensInfo[i].tokenAddress != _weth
-                ) {
-                    address pair = _pancakeFactory.getPair(allTokensInfo[i].tokenAddress, _weth);
-                    require(pair != address(0), "ExilonNftLootboxMain: No token pair with wbnb");
-                    (uint256 reserve1, uint256 reserve2, ) = IPancakePair(pair).getReserves();
-                    require(
-                        reserve1 > 0 && reserve2 > 0,
-                        "ExilonNftLootboxMain: Not initialized pair"
-                    );
-                }
-            }
+            _checkPrizesForMegaWithRefund(id, _masterContract);
         } else {
             _mergeRequestInfo.push(
                 MergeRequestInfo({
@@ -314,14 +289,9 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
         address creator = _masterContract.setWinningPlacesToTheCreator(id);
 
         if (setType == ExilonNftLootboxLibrary.LootBoxType.MEGA_LOOTBOX_RESERVE) {
-            uint256 refundPoolAmount = _totalSupplyId * priceHolder.defaultOpeningPrice(id);
+            _transferRefund(id, _totalSupplyId);
 
-            require(
-                IERC20(usdToken).allowance(msg.sender, address(this)) >= refundPoolAmount,
-                "ExilonNftLootboxMain: No enougth allowance for refund"
-            );
-            IERC20(usdToken).safeTransferFrom(msg.sender, address(this), refundPoolAmount);
-            emit RefundFundCollected(msg.sender, refundPoolAmount);
+            _checkPrizesForMegaWithRefund(id, _masterContract);
         }
 
         emit MegaLootbox(msg.sender, creator, id, setType);
@@ -510,6 +480,45 @@ contract ExilonNftLootboxMain is ERC1155, FeeCalculator, FeeSender, IExilonNftLo
             _idToMergeRequestIndex[replacement.id] = requestIndex;
         }
         _mergeRequestInfo.pop();
+    }
+
+    function _transferRefund(uint256 id, uint256 amountLootboxes) private returns (uint256) {
+        uint256 refundPoolAmount = amountLootboxes * priceHolder.defaultOpeningPrice(id);
+
+        require(
+            IERC20(usdToken).allowance(msg.sender, address(this)) >= refundPoolAmount,
+            "ExilonNftLootboxMain: No enougth allowance for refund"
+        );
+        IERC20(usdToken).safeTransferFrom(msg.sender, address(this), refundPoolAmount);
+        emit RefundFundCollected(msg.sender, refundPoolAmount);
+
+        return refundPoolAmount;
+    }
+
+    function _checkPrizesForMegaWithRefund(uint256 id, IExilonNftLootboxMaster _masterContract)
+        private
+        view
+    {
+        uint256 prizesLength = _masterContract.getRestPrizesLength(id);
+        ExilonNftLootboxLibrary.WinningPlace[] memory prizes = _masterContract.getRestPrizesInfo(
+            id,
+            0,
+            prizesLength
+        );
+        (ExilonNftLootboxLibrary.TokenInfo[] memory allTokensInfo, ) = ExilonNftLootboxLibrary
+            .processTokensInfo(prizes);
+        for (uint256 i = 0; i < allTokensInfo.length; ++i) {
+            if (
+                allTokensInfo[i].tokenType == ExilonNftLootboxLibrary.TokenType.ERC20 &&
+                allTokensInfo[i].tokenAddress != usdToken &&
+                allTokensInfo[i].tokenAddress != _weth
+            ) {
+                address pair = _pancakeFactory.getPair(allTokensInfo[i].tokenAddress, _weth);
+                require(pair != address(0), "ExilonNftLootboxMain: No token pair with wbnb");
+                (uint256 reserve1, uint256 reserve2, ) = IPancakePair(pair).getReserves();
+                require(reserve1 > 0 && reserve2 > 0, "ExilonNftLootboxMain: Not initialized pair");
+            }
+        }
     }
 
     function _deleteId(uint256 id) private {

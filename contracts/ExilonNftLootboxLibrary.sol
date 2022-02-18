@@ -13,6 +13,7 @@ import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 import "./interfaces/IExilon.sol";
 import "./interfaces/IExilonNftLootboxMain.sol";
 import "./interfaces/IPriceHolder.sol";
+import "./interfaces/IFundsHolder.sol";
 
 library ExilonNftLootboxLibrary {
     using SafeERC20 for IERC20;
@@ -43,7 +44,7 @@ library ExilonNftLootboxLibrary {
 
     uint256 public constant MAX_TOKENS_IN_LOOTBOX = 200;
     uint256 public constant MAX_GAS_FOR_TOKEN_TRANSFER = 1_200_000;
-    uint256 public constant MAX_GAS_FOR_ETH_TRANSFER = 600_000;
+    uint256 public constant MAX_GAS_FOR_ETH_TRANSFER = 500_000;
 
     event BadERC20TokenWithdraw(
         address indexed token,
@@ -437,11 +438,8 @@ library ExilonNftLootboxLibrary {
                 sharesBefore = _totalSharesOfERC20[allTokensInfo[i].tokenAddress];
                 _totalSharesOfERC20[allTokensInfo[i].tokenAddress] =
                     sharesBefore -
-                    allTokensInfo[i].amount *
-                    input.winningPlace.placeAmounts;
-                allTokensInfo[i].amount =
-                    (allTokensInfo[i].amount * input.winningPlace.placeAmounts * balanceBefore) /
-                    sharesBefore;
+                    allTokensInfo[i].amount;
+                allTokensInfo[i].amount = (allTokensInfo[i].amount * balanceBefore) / sharesBefore;
             }
         }
 
@@ -504,7 +502,7 @@ library ExilonNftLootboxLibrary {
         address weth,
         address token,
         uint256 amount
-    ) external view returns (uint256) {
+    ) public view returns (uint256) {
         if (amount == 0) {
             return 0;
         }
@@ -538,6 +536,10 @@ library ExilonNftLootboxLibrary {
             string memory
         )
     {
+        if (amount == 0) {
+            return (true, 0, "");
+        }
+
         uint256 balance;
         if (address(token) == address(0)) {
             balance = address(this).balance;
@@ -665,6 +667,10 @@ library ExilonNftLootboxLibrary {
 
         if (max > total - minimalReservationsForOtherUsers) {
             max = total - minimalReservationsForOtherUsers;
+        }
+
+        if (min > max) {
+            min = max;
         }
     }
 

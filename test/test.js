@@ -38,6 +38,8 @@ describe("Exilon Nft Lootbox test", function () {
     beforeEach(async () => {
         [deployer, feeToSetter, feeReceiver, user, feeReceiver1, feeReceiver2] =
             await ethers.getSigners();
+        hre.tracer.nameTags[deployer.address] = "deployer";
+        hre.tracer.nameTags[user.address] = "user";
 
         const WETHFactory = await hre.ethers.getContractFactory("WETH");
         WETHInst = await WETHFactory.deploy();
@@ -51,6 +53,7 @@ describe("Exilon Nft Lootbox test", function () {
 
         const AccessFactory = await hre.ethers.getContractFactory("Access");
         AccessInst = await AccessFactory.deploy();
+        hre.tracer.nameTags[AccessInst.address] = "AccessInst";
 
         const FeeReceiverFactory = await hre.ethers.getContractFactory("FeeReceiver");
         feeRecipients = [feeReceiver1.address, feeReceiver2.address];
@@ -60,23 +63,30 @@ describe("Exilon Nft Lootbox test", function () {
             feeRecipientAmounts,
             AccessInst.address
         );
+        hre.tracer.nameTags[FeeReceiverInst.address] = "FeeReceiverInst";
         await FeeReceiverInst.setMinimalAmountToDistribute(0);
 
         const ExilonNftLootboxLibraryFactory = await hre.ethers.getContractFactory(
             "ExilonNftLootboxLibrary"
         );
         ExilonNftLootboxLibraryInst = await ExilonNftLootboxLibraryFactory.deploy();
+        hre.tracer.nameTags[ExilonNftLootboxLibraryInst.address] = "ExilonNftLootboxLibraryInst";
 
         const ERC20TestFactorty = await hre.ethers.getContractFactory("ERC20Test");
         ExilonInst = await ERC20TestFactorty.deploy();
+        hre.tracer.nameTags[ExilonInst.address] = "ExilonInst";
         UsdInst = await ERC20TestFactorty.deploy();
+        hre.tracer.nameTags[UsdInst.address] = "UsdInst";
         Erc20Inst = await ERC20TestFactorty.deploy();
+        hre.tracer.nameTags[Erc20Inst.address] = "Erc20Inst";
 
         const ERC721TestFactorty = await hre.ethers.getContractFactory("ERC721Test");
         Erc721Inst = await ERC721TestFactorty.deploy();
+        hre.tracer.nameTags[Erc721Inst.address] = "Erc721Inst";
 
         const ERC1155TestFactorty = await hre.ethers.getContractFactory("ERC1155Test");
         Erc1155Inst = await ERC1155TestFactorty.deploy();
+        hre.tracer.nameTags[Erc1155Inst.address] = "Erc1155Inst";
 
         const NftMarketplaceFactory = await hre.ethers.getContractFactory("NftMarketplace", {
             libraries: {
@@ -89,6 +99,7 @@ describe("Exilon Nft Lootbox test", function () {
             FeeReceiverInst.address,
             AccessInst.address
         );
+        hre.tracer.nameTags[NftMarketplaceInst.address] = "NftMarketplaceInst";
 
         const ExilonNftLootboxMainFactory = await hre.ethers.getContractFactory(
             "ExilonNftLootboxMain",
@@ -105,6 +116,7 @@ describe("Exilon Nft Lootbox test", function () {
             FeeReceiverInst.address,
             AccessInst.address
         );
+        hre.tracer.nameTags[ExilonNftLootboxMainInst.address] = "ExilonNftLootboxMainInst";
 
         const FundsHolderFactoryFactory = await hre.ethers.getContractFactory(
             "FundsHolderFactory",
@@ -115,6 +127,7 @@ describe("Exilon Nft Lootbox test", function () {
             }
         );
         FundsHolderFactoryInst = await FundsHolderFactoryFactory.deploy();
+        hre.tracer.nameTags[FundsHolderFactoryInst.address] = "FundsHolderFactoryInst";
 
         const PriceHolderFactory = await hre.ethers.getContractFactory("PriceHolder", {
             libraries: {
@@ -128,6 +141,7 @@ describe("Exilon Nft Lootbox test", function () {
             AccessInst.address,
             ExilonNftLootboxMainInst.address
         );
+        hre.tracer.nameTags[PriceHolderInst.address] = "PriceHolderInst";
 
         const ExilonNftLootboxMasterFactory = await hre.ethers.getContractFactory(
             "ExilonNftLootboxMaster",
@@ -147,34 +161,10 @@ describe("Exilon Nft Lootbox test", function () {
             FundsHolderFactoryInst.address,
             PriceHolderInst.address
         );
+        hre.tracer.nameTags[ExilonNftLootboxMasterInst.address] = "ExilonNftLootboxMasterInst";
 
-        let amountOfExilonToPair = OneExilon.mul(1000);
-        let amountOfEthToExilonPair = OneEth.mul(2);
-        await ExilonInst.mint(amountOfExilonToPair);
-        await ExilonInst.approve(PancakeRouterInst.address, amountOfExilonToPair);
-        await PancakeRouterInst.addLiquidityETH(
-            ExilonInst.address,
-            amountOfExilonToPair,
-            0,
-            0,
-            deployer.address,
-            Deadline,
-            { value: amountOfEthToExilonPair }
-        );
-
-        let amountOfUsdToPair = OneUsd.mul(2000);
-        let amountOfEthToUsdPair = OneEth.mul(3);
-        await UsdInst.mint(amountOfUsdToPair);
-        await UsdInst.approve(PancakeRouterInst.address, amountOfUsdToPair);
-        await PancakeRouterInst.addLiquidityETH(
-            UsdInst.address,
-            amountOfUsdToPair,
-            0,
-            0,
-            deployer.address,
-            Deadline,
-            { value: amountOfEthToUsdPair }
-        );
+        await addLiquidityETH(ExilonInst);
+        await addLiquidityETH(UsdInst);
     });
 
     it("Pack and unpack test", async () => {
@@ -342,5 +332,150 @@ describe("Exilon Nft Lootbox test", function () {
                 expect(data[2]).to.be.equals("ERC1155Test: Transfers disabled");
             }
         }
+
+        await snapshotBeforeOpening.restore();
+
+        hre.tracer.nameTags[await ExilonNftLootboxMasterInst.idsToFundsHolders(0)] =
+            "FundsHolder(0)";
+
+        let totalAmountPlaces = 0;
+        for (winningPlace of prizeInfo) {
+            totalAmountPlaces += winningPlace.placeAmounts;
+        }
+        await UsdInst.mint(OneUsd.mul(totalAmountPlaces));
+        await UsdInst.approve(ExilonNftLootboxMainInst.address, OneUsd.mul(totalAmountPlaces));
+        await addLiquidityETH(Erc20Inst);
+        await ExilonNftLootboxMainInst.setIdMega(0, 1);
+        for (let i = 0; i < prizeInfo.length; ++i) {
+            await ExilonNftLootboxMasterInst.removeWinningPlace(
+                0,
+                0,
+                prizeInfo[i].placeAmounts,
+                deployer.address
+            );
+        }
+
+        await snapshotBeforeOpening.restore();
+
+        hre.tracer.nameTags[await ExilonNftLootboxMasterInst.idsToFundsHolders(0)] =
+            "FundsHolder(0)";
+
+        await UsdInst.connect(user).mint(OneUsd.mul(totalAmountPlaces));
+        await UsdInst.connect(user).approve(
+            ExilonNftLootboxMainInst.address,
+            OneUsd.mul(totalAmountPlaces)
+        );
+        await UsdInst.mint(OneUsd.mul(totalAmountPlaces));
+        await UsdInst.approve(ExilonNftLootboxMainInst.address, OneUsd.mul(totalAmountPlaces));
+        await addLiquidityETH(Erc20Inst);
+        await ExilonNftLootboxMainInst.setIdMega(0, 1);
+
+        await Erc20Inst.connect(user).mint(amountOfErc20ToBox);
+        await Erc20Inst.connect(user).approve(
+            ExilonNftLootboxMasterInst.address,
+            amountOfErc20ToBox
+        );
+
+        idOfErc721 = idOfErc721.add(1);
+        prizeInfo[2].prizesInfo[0].id = idOfErc721;
+        await Erc721Inst.connect(user).mint(idOfErc721);
+        await Erc721Inst.connect(user).setApprovalForAll(ExilonNftLootboxMasterInst.address, true);
+
+        await Erc1155Inst.connect(user).mint(idOfErc1155, amountOfErc1155);
+        await Erc1155Inst.connect(user).setApprovalForAll(ExilonNftLootboxMasterInst.address, true);
+
+        await ExilonNftLootboxMasterInst.connect(user).makeLootBox(prizeInfo, OneUsd, true, "", {
+            value: await PriceHolderInst.getBnbPriceToCreate(),
+        });
+
+        await NftMarketplaceInst.connect(user).sendAddressOnModeration(
+            {
+                tokenAddress: ExilonNftLootboxMainInst.address,
+                tokenType: 2,
+                id: 1,
+                amount: 0,
+            },
+            { value: await NftMarketplaceInst.getBnbPriceForModeration() }
+        );
+        await NftMarketplaceInst.processModeration(ExilonNftLootboxMainInst.address, 1, true);
+
+        await ExilonNftLootboxMainInst.connect(user).requestIdForMerge(1, 0, {
+            value: await ExilonNftLootboxMainInst.getBnbPriceToMergeRequest(),
+        });
+        await ExilonNftLootboxMainInst.connect(deployer).processMergeRequest(1, true);
+
+        await ExilonNftLootboxMasterInst.connect(user).buyId(0, 16, {
+            value: await PriceHolderInst.getBnbPriceToOpen(user.address, 0, 16),
+        });
+
+        await snapshotBeforeOpening.restore();
+
+        await ExilonNftLootboxMasterInst.connect(user).buyId(0, 8, {
+            value: await PriceHolderInst.getBnbPriceToOpen(user.address, 0, 8),
+        });
+
+        const fundsHolder1 = await ExilonNftLootboxMasterInst.idsToFundsHolders(1);
+        hre.tracer.nameTags[fundsHolder1] = "FundsHolder(1)";
+
+        await Erc20Inst.connect(user).mint(amountOfErc20ToBox);
+        await Erc20Inst.connect(user).approve(
+            ExilonNftLootboxMasterInst.address,
+            amountOfErc20ToBox
+        );
+
+        await ExilonNftLootboxMasterInst.connect(user).makeLootBox(
+            [prizeInfo[0], prizeInfo[1]],
+            OneUsd,
+            true,
+            "",
+            {
+                value: await PriceHolderInst.getBnbPriceToCreate(),
+            }
+        );
+
+        await UsdInst.mint(OneUsd.mul(totalAmountPlaces));
+        await UsdInst.approve(ExilonNftLootboxMainInst.address, OneUsd.mul(totalAmountPlaces));
+        await addLiquidityETH(Erc20Inst);
+        await ExilonNftLootboxMainInst.setIdMega(1, 1);
+
+        await PriceHolderInst.setRandomParams(10000, 100000, 2);
+
+        await ExilonNftLootboxMasterInst.connect(user).buyId(1, 1, {
+            value: await PriceHolderInst.getBnbPriceToOpen(user.address, 1, 1),
+        });
+
+        let prizesInfoContract = await ExilonNftLootboxMasterInst.getRestPrizesInfo(1, 0, 2);
+        for (let i = 0; i < 2; ++i) {
+            await ExilonNftLootboxMasterInst.removeWinningPlace(
+                1,
+                0,
+                prizesInfoContract[i].placeAmounts,
+                user.address
+            );
+        }
+
+        console.log("balance after token =", (await Erc20Inst.balanceOf(fundsHolder1)).toString());
+        console.log(
+            "balance after usd =",
+            (await UsdInst.balanceOf(ExilonNftLootboxMainInst.address)).toString()
+        );
     });
+
+    async function addLiquidityETH(token) {
+        let amountOfTokenToPair = BN.from(10)
+            .pow(await token.decimals())
+            .mul(1000);
+        let amountOfEthToPair = OneEth.mul(2);
+        await token.mint(amountOfTokenToPair);
+        await token.approve(PancakeRouterInst.address, amountOfTokenToPair);
+        await PancakeRouterInst.addLiquidityETH(
+            token.address,
+            amountOfTokenToPair,
+            0,
+            0,
+            deployer.address,
+            Deadline,
+            { value: amountOfEthToPair }
+        );
+    }
 });
