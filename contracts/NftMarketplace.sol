@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
@@ -18,6 +19,7 @@ import "./interfaces/IExilonNftLootboxMain.sol";
 
 contract NftMarketplace is FeeCalculator, FeeSender, ERC721Holder, ERC1155Holder, INftMarketplace {
     using EnumerableSet for EnumerableSet.UintSet;
+    using Address for address;
 
     struct SellingInfo {
         ExilonNftLootboxLibrary.TokenInfo tokenInfo;
@@ -530,6 +532,7 @@ contract NftMarketplace is FeeCalculator, FeeSender, ERC721Holder, ERC1155Holder
         ExilonNftLootboxLibrary.TokenInfo calldata tokenInfo,
         bool isZeroAmount
     ) private view {
+        require(tokenInfo.tokenAddress.isContract(), "NftMarketplace: Not a contract");
         require(
             tokenInfo.tokenType == ExilonNftLootboxLibrary.TokenType.ERC721 ||
                 tokenInfo.tokenType == ExilonNftLootboxLibrary.TokenType.ERC1155,

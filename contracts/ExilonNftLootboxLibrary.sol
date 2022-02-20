@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 
@@ -17,6 +18,7 @@ import "./interfaces/IFundsHolder.sol";
 
 library ExilonNftLootboxLibrary {
     using SafeERC20 for IERC20;
+    using Address for address;
 
     enum TokenType {
         ERC20,
@@ -325,6 +327,10 @@ library ExilonNftLootboxLibrary {
                 ];
 
                 if (currentToken.tokenType == ExilonNftLootboxLibrary.TokenType.ERC20) {
+                    require(
+                        currentToken.tokenAddress.isContract(),
+                        "NftMarketplace: Not a contract"
+                    );
                     require(currentToken.id == 0, "ExilonNftLootboxLibrary: ERC20 no id");
                     require(currentToken.amount > 0, "ExilonNftLootboxLibrary: ERC20 amount");
                 } else if (currentToken.tokenType == ExilonNftLootboxLibrary.TokenType.ERC721) {

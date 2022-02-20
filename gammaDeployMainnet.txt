@@ -1,42 +1,43 @@
-Deployer: 0x12906800D3866A470198DFe4B1aad8FC5BCfE067 
+Deployer: 0x12906800D3866A470198DFe4B1aad8FC5BCfE067
 
 Deploying Access...
 Access deployed at 0xe1934baC2157CBB9f14b737F2c17115b33Cd706f
-Used gas: 729070 
+Used gas: 729070
 
 Deploying FeeReceiver...
 FeeReceiver deployed at 0xB483538336839e24208d26c2A3C1Bb13dCaEf767
-Used gas: 1278173 
+Used gas: 1278173
 
 Deploying ExilonNftLootboxLibrary...
 ExilonNftLootboxLibrary deployed at 0xB250d6FC5A31F9FA8215945661AD4b5f7414a524
-Used gas: 3546888 
+Used gas: 3546888
 
 Deploying NftMarketplace...
 NftMarketplace deployed at 0x1CEaE3BA94BA8365D664e9Dc97f7e232f39B6f02
-Used gas: 4309976 
+Used gas: 4309976
 
 Deploying ExilonNftLootboxMain...
 ExilonNftLootboxMain deployed at 0x8bB4c369093e93a0bf96558cb49deb36a5AE8d5c
-Used gas: 5280376 
+Used gas: 5280376
 
 Deploying FundsHolderFactory...
 FundsHolderFactory deployed at 0x3F0a6C59b1fda9A8140cAf9e06599cBf07da822B
-Used gas: 836551 
+Used gas: 836551
 
 Deploying PriceHolder...
 PriceHolder deployed at 0x85c273ADFf6Da422dA2c99666227d8a63f748deD
-Used gas: 2158667 
+Used gas: 2158667
 
 Deploying ExilonNftLootboxMaster...
 ExilonNftLootboxMaster deployed at 0xecE0b86F22ee089CA0A45FBaf58B1Bd1EA73Cd31
-Used gas: 5531631 
+Used gas: 5531631
 
 Deploying ERC721Main...
 ERC721Main deployed at 0x55C69561494E5A7a29e0ab9b1AFf914C82931f99
-Used gas: 2124502 
+Used gas: 2124502
 
 Deploying ERC1155Main...
 ERC1155Main deployed at 0xDec8FD8B6a3522E7BB029fFF81fA6a3Fe5dd2C6C
-Used gas: 2248180 
+Used gas: 2248180
 
+FeeReceiverLocalAccess - 0xc06242E1fDFF41fE86a94Fd44ED8220fa562fF44

@@ -5,11 +5,14 @@ pragma solidity 0.8.11;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 
 import "./AccessConnector.sol";
 
-contract FeeReceiver is AccessConnector {
+contract FeeReceiverLocalAccess is AccessControlEnumerable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     address[] public feeRecipients;
     uint256[] public feeRecipientAmounts;
@@ -17,6 +20,14 @@ contract FeeReceiver is AccessConnector {
     uint256 public totalShares;
 
     uint256 public minimalAmountToDistribute = 1 ether;
+
+    modifier onlyManagerOrAdmin() {
+        require(
+            hasRole(MANAGER_ROLE, msg.sender) || hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            "FeeReceiverLocalAccess: No access"
+        );
+        _;
+    }
 
     event FeeRecipientsChange(
         address[] feeRecipients,
@@ -27,11 +38,9 @@ contract FeeReceiver is AccessConnector {
 
     event MinimalAmountToDistributeChange(uint256 newValue);
 
-    constructor(
-        address[] memory _feeRecipients,
-        uint256[] memory _feeRecipientAmounts,
-        IAccess _accessControl
-    ) AccessConnector(_accessControl) {
+    constructor(address[] memory _feeRecipients, uint256[] memory _feeRecipientAmounts) {
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
         _setFeeRecipientParameters(_feeRecipients, _feeRecipientAmounts);
 
         emit MinimalAmountToDistributeChange(minimalAmountToDistribute);
@@ -48,11 +57,11 @@ contract FeeReceiver is AccessConnector {
     function setFeeRecipientParameters(
         address[] memory _feeRecipients,
         uint256[] memory _feeRecipientAmounts
-    ) external onlyAdmin {
+    ) external onlyManagerOrAdmin {
         _setFeeRecipientParameters(_feeRecipients, _feeRecipientAmounts);
     }
 
-    function withdrawToken(address token, uint256 amount) external nonReentrant onlyAdmin {
+    function withdrawToken(address token, uint256 amount) external nonReentrant onlyManagerOrAdmin {
         uint256 balance;
         if (token == address(0)) {
             balance = address(this).balance;
@@ -70,7 +79,7 @@ contract FeeReceiver is AccessConnector {
 
         if (token == address(0)) {
             (bool success, ) = msg.sender.call{value: amount}("");
-            require(success, "FeeReceiver: Withdraw failed");
+            require(success, "FeeReceiverLocalAccess: Withdraw failed");
         } else {
             IERC20(token).safeTransfer(msg.sender, amount);
         }
@@ -101,13 +110,13 @@ contract FeeReceiver is AccessConnector {
             _feeRecipientAmounts[i] = amountNow;
 
             (bool success, ) = _feeRecipients[i].call{value: amountNow}("");
-            require(success, "FeeReceiver: Transfer failed");
+            require(success, "FeeReceiverLocalAccess: Transfer failed");
         }
 
         emit Distribution(_feeRecipients, _feeRecipientAmounts);
     }
 
-    function setMinimalAmountToDistribute(uint256 newValue) external onlyAdmin {
+    function setMinimalAmountToDistribute(uint256 newValue) external onlyManagerOrAdmin {
         minimalAmountToDistribute = newValue;
 
         emit MinimalAmountToDistributeChange(newValue);
@@ -119,16 +128,16 @@ contract FeeReceiver is AccessConnector {
     ) private {
         require(
             _feeRecipients.length > 0 && _feeRecipients.length == _feeRecipientAmounts.length,
-            "FeeReceiver: Bad length"
+            "FeeReceiverLocalAccess: Bad length"
         );
 
         uint256 _totalShares;
         for (uint256 i = 0; i < _feeRecipients.length; ++i) {
-            require(_feeRecipientAmounts[i] > 0, "FeeReceiver: Bad amounts");
+            require(_feeRecipientAmounts[i] > 0, "FeeReceiverLocalAccess: Bad amounts");
 
             _totalShares += _feeRecipientAmounts[i];
         }
-        require(_totalShares > 0, "FeeReceiver: Bad shares");
+        require(_totalShares > 0, "FeeReceiverLocalAccess: Bad shares");
         totalShares = _totalShares;
         feeRecipients = _feeRecipients;
         feeRecipientAmounts = _feeRecipientAmounts;

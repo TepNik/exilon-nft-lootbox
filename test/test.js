@@ -64,7 +64,19 @@ describe("Exilon Nft Lootbox test", function () {
             AccessInst.address
         );
         hre.tracer.nameTags[FeeReceiverInst.address] = "FeeReceiverInst";
-        await FeeReceiverInst.setMinimalAmountToDistribute(0);
+        //await FeeReceiverInst.setMinimalAmountToDistribute(0);
+
+        const FeeReceiverLocalAccessFactory = await hre.ethers.getContractFactory(
+            "FeeReceiverLocalAccess"
+        );
+        feeRecipients = [feeReceiver1.address, feeReceiver2.address];
+        feeRecipientAmounts = [1, 2];
+        FeeReceiverLocalAccessInst = await FeeReceiverLocalAccessFactory.deploy(
+            feeRecipients,
+            feeRecipientAmounts
+        );
+        hre.tracer.nameTags[FeeReceiverLocalAccessInst.address] = "FeeReceiverLocalAccess";
+        await FeeReceiverLocalAccessInst.setMinimalAmountToDistribute(0);
 
         const ExilonNftLootboxLibraryFactory = await hre.ethers.getContractFactory(
             "ExilonNftLootboxLibrary"
