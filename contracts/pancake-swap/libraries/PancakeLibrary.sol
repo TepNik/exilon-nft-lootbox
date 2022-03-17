@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.11;
+pragma solidity 0.8.12;
 
 //import '@uniswap/v2-core/contracts/interfaces/IPancakePair.sol';
 import "./../interfaces/IPancakePair.sol";
